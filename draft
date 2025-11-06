@@ -1,0 +1,5 @@
+REST, JSON
+POST /uploads/initiate {bucket, key, upload_id, urls[]} server creates a multipart upload and returns presigned PUT urls for each part. user PUTs directly to storage then calls /uploads/ 
+POST /jobs {job_id} includes {bucket, key, options} gateway adds a record to the stream or publishes to queue
+GET /jobs/{id} {status, progress, result_urls}
+GET /results/{id} presigned GET urls
