@@ -110,7 +110,7 @@ app.use((req, res, next) => {
     let requestOrigin = req.headers.origin || "*";
     res.setHeader("Access-Control-Allow-Origin", requestOrigin);
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie, Set-Cookie");
     res.setHeader("Access-Control-Allow-Credentials", "true");
 
     if (req.method === "OPTIONS") { return res.sendStatus(200); }
@@ -147,8 +147,8 @@ app.post('/create', async (req, res) => {
 });
 
 app.post('/login', async (req, res) => {
-    if(!req.is('application/json')) {
-        return res.status(415).json({error:'Content-Type must be application/json'});
+    if (!req.is('application/json')) {
+        return res.status(415).json({ error: 'Content-Type must be application/json' });
     }
     console.log(req.body);
     const { email, password } = req.body; //|| {};
@@ -178,16 +178,15 @@ app.post('/login', async (req, res) => {
             path: '/'
         });
 
+        return res.json({ ok: true });
     });
-    return res.json({ ok: true });
 });
 
-app.post('/logout', async (req, res) => {
-    res.cookie('token', 'hi', {
+app.post('/logout', (req, res) => {
+    res.clearCookie('token', {
         httpOnly: true,
         secure: process.env.COOKIE_SECURE === 'true',
         sameSite: 'none',
-        maxAge: JWT_EXP_SECONDS * 1000,
         path: '/'
     });
 

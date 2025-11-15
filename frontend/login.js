@@ -1,6 +1,6 @@
 //const BASE_URL = window.location.origin;
 var BASE_URL = "https://polina-gateway.fly.dev"; // gateway base URL
-var AUTH_URL = 'https://taupekhana.tail2feabe.ts.net'; //`${BASE_URL}/auth`;
+var AUTH_URL = `${BASE_URL}/auth`;
 
 async function loginUser(email, password) {
     console.log(AUTH_URL);
