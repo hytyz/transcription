@@ -1,3 +1,10 @@
 package-lock.json
 node_modules
+*.pem
 original
+*.env
+/.git
+/node_modules
+.dockerignore
+Dockerfile
+fly.toml
