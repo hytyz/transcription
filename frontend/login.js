@@ -12,9 +12,9 @@ async function loginUser(email, password) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // const msg = document.getElementById('msg');
-    console.log("inside event listener");
+    // console.log("inside event listener");
     document.getElementById('login-form').addEventListener('submit', async (e) => {
-        console.log("inside get element by id login form")
+        // console.log("inside get element by id login form")
         e.preventDefault();
         const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;

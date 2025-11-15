@@ -1,7 +1,8 @@
 checkAuth().then((result) => {
     const anchor1 = document.getElementById("dashboard-anchor1");
     const anchor2 = document.getElementById("dashboard-anchor2");
-    if (!result.payload.email) {
+    // console.log(result);
+    if (!result.payload) {
         anchor1.innerHTML = "login";
         anchor1.href = "/login.html";
         anchor2.innerHTML = "register";
