@@ -4,25 +4,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
+    <title></title>
     <link rel="stylesheet" href="./css/style.css">
 </head>
 
-<body>
-    <main class="container">
-        <h1>login</h1>
-        <form id="login-form">
-            <label>email
+<body class="auth-page">
+    <div id="navbar"></div>
+
+    <main class="container auth-container">
+        <h1 class="auth-title">user login</h1>
+
+        <form id="auth-form" class="auth-form">
+            <div class="form-row">
+                <label for="email">email:</label>
                 <input type="email" id="email" required>
-            </label>
-            <label>password
+            </div>
+            <div class="form-row">
+                <label for="password">password:</label>
                 <input type="password" id="password" required>
-            </label>
-            <button id="login-button" type="submit">login</button>
+            </div>
+            <button type="submit" class="auth-button">login</button>
+            <a href="/register" class="auth-switch-link">register</a>
         </form>
-        <p id="msg"></p>
-        <a href="index.html">back</a>
     </main>
+    <script src="navbar.js"></script>
     <script src="script.js"></script>
     <script src="login.js"></script>
 </body>

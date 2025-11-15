@@ -7,20 +7,18 @@ checkAuth().then((res) => {
     const anchor2 = document.getElementById("dashboard-anchor2");
     // console.log(res);
     if (!res.payload) {
-        anchor1.textContent = "login";
         anchor1.href = "/login";
-        anchor2.textContent = "register";
         anchor2.href = "/register";
     } else {
         anchor1.textContent = "view files"; // TODO
         anchor1.href = "#";
         anchor2.textContent = "log out"; // TODO
-        anchor2.href = "#";
+        anchor2.href = "/";
 
         anchor2.addEventListener("click", async (e) => {
             e.preventDefault();
             await fetch(`${AUTH_URL}/logout`, { method: "POST", credentials: "include" });
-            window.location.href = "/login";
+            window.location.href = "/";
         });
     }
 })

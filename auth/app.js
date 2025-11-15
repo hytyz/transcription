@@ -150,12 +150,12 @@ app.post('/login', async (req, res) => {
     if (!req.is('application/json')) {
         return res.status(415).json({ error: 'Content-Type must be application/json' });
     }
-    console.log(req.body);
+    // console.log(req.body);
     const { email, password } = req.body; //|| {};
-    console.log(email, password);
+    // onsole.log(email, password);
 
     if (!email || !password) return res.status(400).json({ error: 'email and password required' });
-    console.log("got to the third console log");
+    // console.log("got to the third console log");
 
     db.get('SELECT email, password_hash, salt FROM users WHERE email = ?', [email], async (err, row) => {
         if (err) return res.status(500).json({ error: 'db error' });

@@ -4,18 +4,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>YTYZ Transcriber</title>
+  <title>YTYZ transcriber</title>
   <link rel="stylesheet" href="./css/style.css">
 </head>
 
 <body>
   <main class="container">
-    <h1>YTYZ transcriber</h1>
-    <nav>
-      <ul>
-        <li><a id="dashboard-anchor1"></a></li>
-        <li><a id="dashboard-anchor2"></a></li>
-      </ul>
+    <header class="header">
+      <h1>YTYZ transcriber</h1>
+      <img src="/css/logo.png" class="logo">
+    </header>
+
+
+    <section class="upload-section">
+      <button class="drop-button" type="button">select or drop recording</button>
+    </section>
+
+    <nav class="auth-nav">
+      <a id="dashboard-anchor1" href="/login">login</a>
+      <span class="divider">|</span>
+      <a id="dashboard-anchor2" href="/register">register</a>
     </nav>
 
     <section>

@@ -12,7 +12,7 @@ async function createUser(email, password) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('createForm').addEventListener('submit', async (e) => {
+    document.getElementById('auth-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
