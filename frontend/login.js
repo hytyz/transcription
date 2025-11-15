@@ -10,7 +10,7 @@ async function loginUser(email, password) {
         body: JSON.stringify({ email, password }),
         credentials: 'include',
     });
-    
+
     return res.json();
 }
 

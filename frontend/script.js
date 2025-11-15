@@ -9,7 +9,7 @@ async function checkAuth() {
   console.log(res);
   return res.json();
   //{"payload":{"email":"admin@admin.com","iat":1763163505,"exp":1763167105}}
-} 
+}
 
 function getCookie(name) {
   const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));

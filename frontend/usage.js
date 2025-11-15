@@ -8,7 +8,7 @@ async function getUsage() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const usageTable = document.getElementById('usageTable');
+    const usageTable = document.getElementById('usage-table');
     const msg = document.getElementById('msg');
 
     getUsage()

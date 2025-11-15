@@ -9,9 +9,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.location.href = '/login';
                 return;
             }
-            const email = result.payload.email;
-            document.getElementById('userEmail').textContent = email;
+
+            const anchor1 = document.getElementById("navbar-anchor1");
+            const anchor2 = document.getElementById("navbar-anchor2");
+            if (anchor1 && anchor2) {
+                anchor1.textContent = "upload";
+                anchor1.href = "/index.html";
+                anchor2.textContent = "log out";
+                anchor2.href = "/";
+                anchor2.addEventListener("click", async (e) => {
+                    e.preventDefault();
+                    await fetch(`${AUTH_URL}/logout`, { method: "POST", credentials: "include" });
+                    window.location.href = "/";
+                });
+            }
+
+            loadPlaceholderFiles();
         })
         .catch(() => { window.location.href = '/login'; });
+
+    const expandButton = root.querySelector(".file-card-expand");
+    const bodyElement = root.querySelector(".file-card-body");
+
+    if (expandButton && bodyElement) {
+        expandButton.addEventListener("click", () => {
+            const expanded = bodyElement.classList.toggle("expanded");
+            expandButton.textContent = expanded ? "collapse" : "expand";
+        });
+    }
 });
 
+function loadPlaceholderFiles() {
+    const container = document.getElementById("dashboard-files");
+    if (!container) return;
+
+    fetch("file.html")
+        .then((r) => r.text())
+        .then((html) => {
+            let combined = "";
+            for (let i = 0; i < 3; i++) combined += html;
+            container.innerHTML = combined;
+        })
+        .catch((err) => { console.error("failed to load file cards", err); });
+}

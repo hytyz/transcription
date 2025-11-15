@@ -12,9 +12,8 @@ checkAuth().then((res) => {
     } else {
         anchor1.textContent = "view files";
         anchor1.href = "/dashboard";
-        anchor2.textContent = "log out"; // TODO
+        anchor2.textContent = "log out";
         anchor2.href = "/";
-
         anchor2.addEventListener("click", async (e) => {
             e.preventDefault();
             await fetch(`${AUTH_URL}/logout`, { method: "POST", credentials: "include" });

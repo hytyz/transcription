@@ -367,3 +367,81 @@ input[type="file"] {
     white-space: pre-wrap;
     overflow-wrap: break-word;
 }
+
+.dashboard-container {
+    padding-top: 110px;
+}
+
+.dashboard-title {
+    font-size: 32px;
+    font-weight: 400;
+    margin-bottom: 50px;
+}
+
+.files-list {
+    width: 80%;
+    max-width: 900px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+.file-card-inner {
+    background-color: #d9d9d9;
+    border: 3px solid #000000;
+    padding: 16px 24px;
+    box-sizing: border-box;
+}
+
+.file-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 18px;
+}
+
+.file-card-body {
+    border: 3px solid #000000;
+    background-color: #ffffff;
+    padding: 8px 10px;
+    box-sizing: border-box;
+    margin-bottom: 6px;
+    max-height: 140px;
+    overflow: hidden;
+}
+
+.file-card-body.expanded {
+    max-height: none;
+    overflow: visible;
+}
+
+.file-card-snippet {
+    font-size: 14px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+}
+
+.file-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    margin-top: 4px;
+}
+
+.file-card-expand,
+.file-card-download {
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.file-card-download .download-icon {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
