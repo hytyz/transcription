@@ -54,12 +54,61 @@ body {
     align-items: center;
 }
 
-#progress-bar {
-    display: none;
+#upload-progress-card {
+    margin: 0;
+}
+
+.upload-card {
     width: 60%;
-    max-width: 320px;
-    margin-top: 12px;
-    height: 12px;
+    max-width: 700px;
+    margin-top: 40px;
+}
+
+.upload-card-inner {
+    background-color: #d9d9d9;
+    border: 3px solid #000000;
+    padding: 16px 24px;
+    box-sizing: border-box;
+}
+
+.upload-card-header {
+    margin-bottom: 16px;
+    font-size: 18px;
+}
+
+.upload-card-body {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+#upload-file-size {
+    min-width: 80px;
+}
+
+#progress-bar {
+    flex: 1;
+    height: 14px;
+    border: 2px solid #000000;
+    border-radius: 0;
+    background-color: #ffffff;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+#progress-bar::-webkit-progress-bar {
+    background-color: #ffffff;
+    border-radius: 0;
+}
+
+#progress-bar::-webkit-progress-value {
+    background-color: #000000;
+    border-radius: 0;
+}
+
+#progress-bar::-moz-progress-bar {
+    background-color: #000000;
+    border-radius: 0;
 }
 
 .drop-button {

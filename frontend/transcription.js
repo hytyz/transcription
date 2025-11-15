@@ -5,5 +5,5 @@ document.addEventListener("DOMContentLoaded", () => {
   const jobId = sessionStorage.getItem("transcriptionJobId") || "";
 
   textArea.value = text;
-  console.log("job id" + jobId);
+  console.log("job id " + jobId);
 });

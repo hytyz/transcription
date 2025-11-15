@@ -19,7 +19,18 @@
       <input type="file" id="audio-file" accept="audio/*">
       <input type="hidden" id="model" value="default">
       <button class="drop-button" type="button">select or drop recording</button>
-      <progress id="progress-bar"></progress>
+    </section>
+
+    <section id="upload-progress-card" class="upload-card" style="display:none;">
+      <div class="upload-card-inner">
+        <div class="upload-card-header">
+          <span id="upload-filename">Filename</span>
+        </div>
+        <div class="upload-card-body">
+          <span id="upload-file-size">0 MB</span>
+          <progress id="progress-bar" max="100" value="0"></progress>
+        </div>
+      </div>
     </section>
 
     <nav class="auth-nav">
@@ -29,7 +40,7 @@
     </nav>
 
   </main>
-  
+
   <script src="script.js"></script>
   <script src="landing.js"></script>
   <script src="transcribe.js"></script>

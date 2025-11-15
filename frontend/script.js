@@ -2,7 +2,7 @@
 var BASE_URL = "https://polina-gateway.fly.dev"; // gateway base URL
 var AUTH_URL = `${BASE_URL}/auth`;
 
-document.querySelector('title').innerHTML = "YTYZ transcription";
+document.title = "YTYZ transcription";
 
 async function checkAuth() {
   const res = await fetch(`${AUTH_URL}/me`, { credentials: 'include' });

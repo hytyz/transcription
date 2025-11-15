@@ -4,6 +4,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const audioFileInput = document.getElementById("audio-file");
   const dropButton = document.querySelector(".drop-button");
+  const uploadSection = document.querySelector(".upload-section");
+  const authNav = document.querySelector(".auth-nav");
+  const uploadCard = document.getElementById("upload-progress-card");
+  const filenameLabel = document.getElementById("upload-filename");
+  const fileSizeLabel = document.getElementById("upload-file-size");
   const progressBar = document.getElementById("progress-bar");
 
   let currentJobId = null;
@@ -24,8 +29,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       dropButton.disabled = true;
-      progressBar.style.display = "block";
-      progressBar.removeAttribute("value");
+      uploadSection.style.display = "none";
+      authNav.style.display = "none";
+      uploadCard.style.display = "block";
+
+      filenameLabel.textContent = file.name || "filename";
+      const sizeMB = file.size / (1024 * 1024);
+      fileSizeLabel.textContent = `${sizeMB.toFixed(1)} MB`;
+
+      progressBar.value = 0;
 
       const res = await fetch(`${gpuURL}/transcribe`, { method: "POST", body: formData });
 
@@ -79,7 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
         dropButton.disabled = false;
         return;
       }
-
+      progressBar.value = 100;
       const json = await res.json();
       let text = json.raw_text || "";
       text = text.replace(/\\n/g, "\n");
