@@ -28,8 +28,14 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(() => { window.location.href = '/login'; });
 
-    const expandButton = root.querySelector(".file-card-expand");
+    const root = document.getElementById("dashboard-files");
+    console.log(root);
+    if (!root) return;
+
+    const expandButton = root.querySelector(".file-card-expand"); // this is broken
     const bodyElement = root.querySelector(".file-card-body");
+    console.log(expandButton); // both return null
+    console.log(bodyElement);
 
     if (expandButton && bodyElement) {
         expandButton.addEventListener("click", () => {
