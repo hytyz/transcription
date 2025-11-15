@@ -15,9 +15,11 @@
       <img src="/css/logo.png" class="logo">
     </header>
 
-
     <section class="upload-section">
+      <input type="file" id="audio-file" accept="audio/*">
+      <input type="hidden" id="model" value="default">
       <button class="drop-button" type="button">select or drop recording</button>
+      <progress id="progress-bar"></progress>
     </section>
 
     <nav class="auth-nav">
@@ -26,11 +28,11 @@
       <a id="dashboard-anchor2" href="/register">register</a>
     </nav>
 
-    <section>
-    </section>
   </main>
+  
   <script src="script.js"></script>
   <script src="landing.js"></script>
+  <script src="transcribe.js"></script>
 </body>
 
 </html>
