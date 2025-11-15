@@ -10,8 +10,8 @@ checkAuth().then((res) => {
         anchor1.href = "/login";
         anchor2.href = "/register";
     } else {
-        anchor1.textContent = "view files"; // TODO
-        anchor1.href = "#";
+        anchor1.textContent = "view files";
+        anchor1.href = "/dashboard";
         anchor2.textContent = "log out"; // TODO
         anchor2.href = "/";
 

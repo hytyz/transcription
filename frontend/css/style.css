@@ -339,6 +339,15 @@ input[type="file"] {
     font-size: 18px;
     cursor: pointer;
     padding: 0;
+    width: 30px;
+    height: 30px;
+    display: inline-block;
+}
+
+.download-button img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
 }
 
 .download-button:focus {

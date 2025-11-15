@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
             anchor2.href = "/register";
         } else {
             anchor1.textContent = "view files"; // TODO
-            anchor1.href = "#";
+            anchor1.href = "/dashboard";
             anchor2.textContent = "log out"; // TODO
             anchor2.href = "/";
 
@@ -38,10 +38,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const now = new Date();
     const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const monthName = now.toLocaleString("en-US", { month: "long" });
     const dd = String(now.getDate()).padStart(2, "0");
-    const yyyymmdd = `${yyyy}${mm}${dd}`;
-    dateEl.textContent = yyyymmdd;
+    const formattedDate = `${yyyy}, ${monthName} ${dd}`;
+    const yyyymmdd = `${yyyy}${String(now.getMonth() + 1).padStart(2, "0")}${dd}`;
+    dateEl.textContent = formattedDate;
 
     downloadBtn.addEventListener("click", () => {
         const baseNoExt = baseFilename.replace(/\.[^.]+$/, "");

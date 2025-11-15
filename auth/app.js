@@ -148,7 +148,7 @@ app.post('/create', async (req, res) => {
 
 app.post('/login', async (req, res) => {
     if (!req.is('application/json')) {
-        return res.status(415).json({ error: 'Content-Type must be application/json' });
+        return res.status(415).json({ error: 'content-type must be application/json' });
     }
     // console.log(req.body);
     const { email, password } = req.body; //|| {};
