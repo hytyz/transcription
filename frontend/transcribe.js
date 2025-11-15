@@ -33,6 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
       uploadCard.style.display = "block";
 
       filenameLabel.textContent = file.name || "filename";
+      sessionStorage.setItem("transcriptionFilename", file.name);
       const sizeMB = file.size / (1024 * 1024);
       fileSizeLabel.textContent = `${sizeMB.toFixed(1)} MB`;
 
