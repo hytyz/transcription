@@ -6,6 +6,7 @@ document.querySelector('title').innerHTML = "YTYZ transcription";
 
 async function checkAuth() {
   const res = await fetch(`${AUTH_URL}/me`, { credentials: 'include' });
+  console.log(res);
   return res.json();
   //{"payload":{"email":"admin@admin.com","iat":1763163505,"exp":1763167105}}
 } 

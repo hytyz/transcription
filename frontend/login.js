@@ -1,6 +1,10 @@
+//const BASE_URL = window.location.origin;
+var BASE_URL = "https://polina-gateway.fly.dev"; // gateway base URL
+var AUTH_URL = 'https://taupekhana.tail2feabe.ts.net'; //`${BASE_URL}/auth`;
+
 async function loginUser(email, password) {
-    console.log(window.AUTH_URL);
-    const res = await fetch(`${window.AUTH_URL}/login`, {
+    console.log(AUTH_URL);
+    const res = await fetch(`${AUTH_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

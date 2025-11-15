@@ -1,3 +1,7 @@
+//const BASE_URL = window.location.origin;
+var BASE_URL = "https://polina-gateway.fly.dev"; // gateway base URL
+var AUTH_URL = `${BASE_URL}/auth`;
+
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth()
         .then((result) => {
