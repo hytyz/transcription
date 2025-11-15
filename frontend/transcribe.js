@@ -9,7 +9,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const uploadCard = document.getElementById("upload-progress-card");
   const filenameLabel = document.getElementById("upload-filename");
   const fileSizeLabel = document.getElementById("upload-file-size");
-  const progressBar = document.getElementById("progress-bar");
 
   let currentJobId = null;
   let pollInterval = null;
@@ -36,8 +35,6 @@ document.addEventListener("DOMContentLoaded", () => {
       filenameLabel.textContent = file.name || "filename";
       const sizeMB = file.size / (1024 * 1024);
       fileSizeLabel.textContent = `${sizeMB.toFixed(1)} MB`;
-
-      progressBar.value = 0;
 
       const res = await fetch(`${gpuURL}/transcribe`, { method: "POST", body: formData });
 
@@ -91,7 +88,6 @@ document.addEventListener("DOMContentLoaded", () => {
         dropButton.disabled = false;
         return;
       }
-      progressBar.value = 100;
       const json = await res.json();
       let text = json.raw_text || "";
       text = text.replace(/\\n/g, "\n");

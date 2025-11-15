@@ -104,11 +104,29 @@ body {
 #progress-bar::-webkit-progress-value {
     background-color: #000000;
     border-radius: 0;
+    animation: progress-animation 1.2s linear infinite;
+    transform-origin: 0 0;
 }
 
 #progress-bar::-moz-progress-bar {
     background-color: #000000;
     border-radius: 0;
+    animation: progress-animation 1.2s linear infinite;
+    transform-origin: 0 0;
+}
+
+@keyframes progress-animation {
+    0% {
+        transform: translateX(-100%) scaleX(0.3);
+    }
+
+    50% {
+        transform: translateX(20%) scaleX(0.7);
+    }
+
+    100% {
+        transform: translateX(100%) scaleX(0.3);
+    }
 }
 
 .drop-button {
