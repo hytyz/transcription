@@ -20,21 +20,23 @@ if not torch.cuda.is_available(): raise TranscriptionError("cuda is unavailable.
 
 def get_device() -> str: return _DEVICE
 
-def load_whisper_model() -> FasterWhisperPipeline:
+def get_whisper_model() -> FasterWhisperPipeline:
     """
-    loads and caches a whisperx model by name
-    subsequent calls with the same model name reuse the cached pipeline instance
+    loads and caches the whisperx large model on the configured device
     tries float16 first and falls back to float32 when float16 is not supported
     """
     global _WHISPER_MODEL
     if _WHISPER_MODEL is not None: return _WHISPER_MODEL
     model_name: str = "large"
+    
     try: model: FasterWhisperPipeline = whisperx.load_model(model_name, _DEVICE, compute_type="float16")
     except ValueError as e:
         message = str(e).lower()
         if "float16" in message: model = whisperx.load_model(model_name, _DEVICE, compute_type="float32")
-        else: raise TranscriptionError(f"model '{model_name}' failed to load: {e}") from e
-    except Exception as e: raise TranscriptionError(f"model '{model_name}' failed to load: {e}") from e
+        else: raise
+    except TranscriptionError: raise
+    except Exception as e: raise Exception(f"model '{model_name}' failed to load: {e}") from e
+
     _WHISPER_MODEL = model
     return model
 
@@ -56,7 +58,7 @@ def get_diarization_pipeline() -> DiarizationPipeline:
     """
     global _DIARIZATION_PIPELINE
     if _DIARIZATION_PIPELINE is None:
-        # TODO find the actual github repo and cite it
+        # https://github.com/m-bain/whisperX/issues/499 -- do NOT switch from the 2.1 model
         _DIARIZATION_PIPELINE = DiarizationPipeline(model_name="pyannote/speaker-diarization@2.1", use_auth_token=__HF_TOKEN, device=_DEVICE)
         try: _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": DIARIZATION_CLUSTER_THRESHOLD}}) # type: ignore[attr-defined]
         except Exception: pass

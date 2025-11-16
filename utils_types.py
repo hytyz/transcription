@@ -1,18 +1,7 @@
 from dataclasses import dataclass
-from typing import Any, List, Mapping, TypedDict, Dict, Union, NamedTuple
-from pandas import DataFrame
-from pyannote.core import Annotation
+from typing import Any, List, Mapping, TypedDict, Dict, NamedTuple
 
 #internal data structures
-
-@dataclass
-class Segment:
-    """
-    segment after transcription or alignment, without speaker labels
-    """
-    start: float
-    end: float
-    text: str
 
 @dataclass
 class SpeakerSegment:
@@ -93,24 +82,5 @@ class WordEntry(TypedDict):
     start: float
     end: float
     word: str
-    speaker: object | None
+    speaker: str | None
 
-# diarization output type used throughout
-DiarizationResult = Union[Annotation, DataFrame, DiarizationDict]
-
-class Track(NamedTuple):
-    """
-    diarization tuple yielded by Annotation.itertracks() from pyannote
-    https://pyannote.github.io/pyannote-core/reference.html#pyannote.core.Annotation.itertracks
-    """
-    time_span: Any
-    track_id: Any
-    speaker_label: Any
-
-class Row(NamedTuple):
-    """
-    diarization tuple yielded by DataFrame.iterrows() from pandas
-    https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.iterrows.html
-    """
-    index: Any
-    values: Mapping[str, Any]

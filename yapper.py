@@ -1,11 +1,12 @@
 import requests
 from requests import Response
 from typing import Dict
-from transcription import transcribe_with_diarization, get_current_state
+from transcription import generate_diarized_transcript, get_current_state
 
 # i'm not sure whether this file is needed:
 #   unless anything else gets added to it, it should be merged with transcription.py or vice versa
 #   or this should be handled in the api 
+#   either way it was probably helpful to try to figure out how this is going to work
 
 def download_audio(base_url: str, jobid: str) -> bytes:
     """
@@ -43,7 +44,7 @@ def process_job(base_url: str, jobid: str) -> None:
         try: upload_status(base_url=base_url, jobid=jobid, state=state) 
         except Exception: pass
 
-    text_bytes: bytes = transcribe_with_diarization(audio_bytes=audio_bytes, on_state_change=_report_state)
+    text_bytes: bytes = generate_diarized_transcript(audio_bytes=audio_bytes, on_state_change=_report_state)
     upload_transcription(base_url=base_url, jobid=jobid, text_bytes=text_bytes)
 
 def upload_status(base_url: str, jobid: str, state: str) -> None:
