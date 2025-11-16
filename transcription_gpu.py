@@ -1,128 +1,25 @@
-import logging; import warnings; from lightning.pytorch.utilities import disable_possible_user_warnings
-
-def _configure_verbosity(verbose: bool) -> None:
-    """
-    sets the global VERBOSE flag and configures warnings and logging levels
-    """
-    global VERBOSE
-    VERBOSE = verbose
-    root_logger = logging.getLogger()
-
-    if VERBOSE:
-        warnings.resetwarnings(); warnings.filterwarnings("default")
-        root_logger.setLevel(logging.INFO)
-        for handler in root_logger.handlers: handler.setLevel(logging.INFO)
-        logging.getLogger("pyannote").setLevel(logging.INFO)
-        logging.getLogger("pytorch_lightning").setLevel(logging.INFO)
-        logging.getLogger("whisperx").setLevel(logging.INFO)
-    else:
-        disable_possible_user_warnings(); warnings.filterwarnings("ignore")
-        root_logger.setLevel(logging.ERROR)
-        for handler in root_logger.handlers: handler.setLevel(logging.ERROR)
-        logging.getLogger("pyannote").setLevel(logging.ERROR)
-        logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
-        logging.getLogger("whisperx").setLevel(logging.ERROR)
-
-_configure_verbosity(False)
-
 import os; import sys; import time
 import contextlib; import argparse; import shutil
-import subprocess; import json; import math
+import subprocess; import math
+import ffmpeg; import numpy; import io
 import whisperx; import torch; import re
 # from pydub import AudioSegment
 from pathlib import Path
 from whisperx.asr import FasterWhisperPipeline
-from pandas import DataFrame
-from dataclasses import dataclass
-from typing import Optional, List, Any, Iterator, Iterable, NamedTuple, Callable, Mapping, TypedDict, Union, Pattern, Tuple
-from pyannote.core import Annotation
+from typing import Optional, List, Any, Iterator, Iterable, Callable, Mapping, Pattern, Tuple
 from numpy import ndarray
+from utils_types import *
 
 DEVICE: str = "cuda"            # required for diarization on gpu
-VERBOSE: bool = False           # controls logging and output suppression
 _ALIGN_MODEL = None             # cached whisperx alignment model instance, created on first use by _get_align_model
 _ALIGN_METADATA = None          # cached metadata of the alignment model
 _DIARIZATION_PIPELINE = None    # cached diarization pipeline instance, created on first use by _get_diarization_pipeline
 
 # for loading the pyannote diarization model
 token: Optional[str] = os.environ.get("HF_TOKEN")
-if token is None or token.strip() == "":
-    print("missing huggingface token. `set/export HF_TOKEN=token`")
-    sys.exit(1)
+if token is None or token.strip() == "": sys.exit(1)
 HF_TOKEN: str = token
-
-# internal objects
-@dataclass
-class Segment:
-    """
-    output of transcription or alignment, no speaker
-    """
-    start: float
-    end: float
-    text: str
-
-@dataclass
-class SpeakerSegment:
-    """
-    output of diarization, no text
-    """
-    start: float
-    end: float
-    label: str
-
-@dataclass
-class Utterance:
-    """
-    text from segment + label from SpeakerSegment with adjusted intervals from the first and last word
-    """
-    start: float
-    end: float
-    speaker: str
-    text: str
-
-# external api views returned by whisperx
-class SegmentDict(TypedDict):
-    """
-    raw segment from transcription or alignment
-    """
-    start: float
-    end: float
-    text: str
-
-class TranscriptionResult(TypedDict):
-    """
-    output of the transcription step
-
-    segments is the list of raw segments produced by the whisperx model before alignment
-    """
-    segments: List[SegmentDict]
-
-class AlignmentResult(TypedDict):
-    """
-    output of the alignment step
-    segments is the list of segments from TranscriptionResult
-    """
-    segments: List[SegmentDict]
-
-class DiarizationSegmentDict(TypedDict, total=False):
-    """
-    a single diarization segment
-    """
-    start: float
-    end: float
-    speaker: str
-    label: str
-
-class DiarizationDict(TypedDict):
-    """
-    diarization output that exposes a segments collection
-    """
-    segments: List[DiarizationSegmentDict]
-
-# diarization output type used throughout
-DiarizationResult = Union[Annotation, DataFrame, DiarizationDict]
-
-class TranscriptionError(Exception): pass
+if not torch.cuda.is_available(): raise TranscriptionError("cuda is unavailable. https://developer.nvidia.com/cuda-downloads")
 
 def _get_align_model():
     """
@@ -133,7 +30,7 @@ def _get_align_model():
     if _ALIGN_MODEL is None or _ALIGN_METADATA is None: _ALIGN_MODEL, _ALIGN_METADATA = whisperx.load_align_model(language_code="en", device=DEVICE)
     return _ALIGN_MODEL, _ALIGN_METADATA
 
-def _get_diarization_pipeline():
+def _get_diarization_pipeline(speaker_threshold: int):
     
     """
     loads and caches the pyannote diarization pipeline used by whisperx
@@ -141,19 +38,12 @@ def _get_diarization_pipeline():
     """
     global _DIARIZATION_PIPELINE
     if _DIARIZATION_PIPELINE is None:
-        _DIARIZATION_PIPELINE = whisperx.diarize.DiarizationPipeline(model_name="pyannote/speaker-diarization@2.1", use_auth_token=HF_TOKEN, device=DEVICE)
-        try: _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": 0.60}})
+        # TODO find the actual github repo and cite it
+        _DIARIZATION_PIPELINE = whisperx.diarize.DiarizationPipeline(model_name="pyannote/speaker-diarization@2.1", use_auth_token=HF_TOKEN, device=DEVICE) # DO NOT CHANGE THIS
+        try: _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": speaker_threshold}}) 
         except Exception as e: 
             if VERBOSE: print(f"could not set diarization clustering threshold: {e}")
     return _DIARIZATION_PIPELINE
-
-@contextlib.contextmanager
-def _suppress_everything() -> Iterator[None]:
-    """
-    redirects stdout and stderr to /dev/null until the context exits, unless VERBOSE
-    """
-    if VERBOSE: yield; return
-    with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull), contextlib.redirect_stderr(devnull): yield
 
 def format_timestamp(total_seconds: float) -> str:
     """
@@ -164,18 +54,7 @@ def format_timestamp(total_seconds: float) -> str:
     seconds: int = int(total_seconds % 60)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-def format_duration(seconds: float) -> str:
-    """
-    converts a duration in seconds to a readable string
-    this is for reporting total processing time to the console
-    """
-    def _plural(unit: str, value: int) -> str: return f"{value} {unit}" + ("s" if value != 1 else "")
-    if seconds < 60: return f"{seconds:.1f} {'second' if int(round(seconds)) == 1 else 'seconds'}"
-    minutes, remaining_seconds = divmod(int(seconds), 60)
-    if minutes < 60: return f"{_plural('minute', minutes)} and {_plural('second', int(remaining_seconds))}"
-    hours, minutes = divmod(minutes, 60)
-    return f"{_plural('hour', hours)}, {_plural('minute', minutes)} and {_plural('second', int(remaining_seconds))}"
-
+# TODO working on this rn
 def convert_to_wav(input_path: Path) -> Path:
     """
     converts an audio file to a 16 kHz, 16.bit pcm wav using ffmpeg
@@ -190,7 +69,7 @@ def convert_to_wav(input_path: Path) -> Path:
     ffmpeg_cmd = [
         "ffmpeg", "-y",         # overwrites any existing output file
         "-i", str(input_path),  # the file passed in params as source
-        # "-ac", "1",
+        # "-ac", "1",           # whisperx docs recommend mono but idk aobut that chief
         "-ar", "16000",         # sample rate 16 kHz
         "-sample_fmt", "s16",   # sample format 16-bit signed
         "-c:a", "pcm_s16le",    # pcm_s16le codec
@@ -200,56 +79,56 @@ def convert_to_wav(input_path: Path) -> Path:
     try:
         ffmpeg_proc = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if ffmpeg_proc.returncode != 0: raise RuntimeError(ffmpeg_proc.stderr.decode(errors="ignore"))
-        if VERBOSE: print(f"{input_path} converted to {wav_output_path}")
         return wav_output_path
     except Exception as e:
         raise TranscriptionError(f"file conversion failed: {e}") from e
 
-def transcribe_audio(audio_path: Path, model: FasterWhisperPipeline) -> TranscriptionResult:
+def _load_audio(data:bytes) -> ndarray:
+    if not shutil.which("ffmpeg"): raise TranscriptionError("ffmpeg not found. https://ffmpeg.org/download.html")
+
+    process = (ffmpeg.input("pipe:0")
+               .output("pipe:1", format="s16le", acodec="pcm_s16le", ac=1, ar="1600")
+               .run_async(pipe_stdin=True, pipe_stdout=True, pipe_stderr=True))
+
+    out: bytes
+    err: bytes
+    out, err = process.communicate(input = data)
+    if process.returncode != 0: raise TranscriptionError(f"ffmpeg decoding failed: {err.decode(errors='ignore')}")
+    
+    audio: ndarray = numpy.frombuffer(out, dtype=numpy.int16)
+    if audio.size == 0: raise TranscriptionError("decoded audio is empty")
+    audio = audio.astype("float32") / 32768.0
+    return audio
+
+def transcribe_audio(audio: ndarray, model: FasterWhisperPipeline) -> TranscriptionResult:
     """
     performs transcription on the given audio using a preloaded whisperx model
     uses torch.inference_mode() to disable gradient tracking for speed and lower memory usage
 
     returns a dictionary with the raw transcription output: segments is a list of segments, each including
-    1. start and end timestamps, and 2. text string
+    start and end timestamps, and text string
     """     
-    with _suppress_everything():
-        audio: ndarray = whisperx.load_audio(str(audio_path))
-        with torch.inference_mode(): result: TranscriptionResult = model.transcribe(audio, language="en", task="transcribe")
+    with torch.inference_mode(): result: TranscriptionResult = model.transcribe(audio, language="en", task="transcribe")
     return result
 
-def align_transcription(segments: List[SegmentDict], audio_path: Path) -> AlignmentResult:
+def align_transcription(audio: ndarray, segments: List[SegmentDict]) -> AlignmentResult:
     """
     aligns raw whisperx segments with the audio via the cached whisperx alignment model
     takes the segment list from a TranscriptionResult and returns an AlignmentResult 
         its "segments" list preserves the original segment-level fields and adds word-level timing information in a "words" field
     """
-    with _suppress_everything():
-        align_model, align_metadata = _get_align_model()
-        alignment_result: AlignmentResult = whisperx.align(segments, align_model, align_metadata, str(audio_path), DEVICE)
+    align_model, align_metadata = _get_align_model()
+    alignment_result: AlignmentResult = whisperx.align(segments, align_model, align_metadata, audio, DEVICE)
     return alignment_result
 
-def run_diarization(audio_path: Path) -> DiarizationResult:
+def run_diarization(audio: ndarray, speaker_threshold: int) -> DiarizationResult:
     """
     runs speaker diarization on an audio file using the cached pipeline through whisperx
     returns an object describing contiguous time spans for each detected speaker
     """
-    with _suppress_everything():
-        diarization_pipeline = _get_diarization_pipeline()
-        diarization_result: DiarizationResult = diarization_pipeline(whisperx.load_audio(str(audio_path)), min_speakers=2, max_speakers=5)
-
+    diarization_pipeline = _get_diarization_pipeline(speaker_threshold)
+    diarization_result: DiarizationResult = diarization_pipeline(whisperx.load_audio(audio), min_speakers=2, max_speakers=5)
     return diarization_result
-
-# diarization tuple yielded by itertracks() from pyannote # https://pyannote.github.io/pyannote-core/reference.html#pyannote.core.Annotation.itertracks
-class Track(NamedTuple):
-    time_span: Any
-    track_id: Any
-    speaker_label: Any
-
-# diarization tuple yielded by iterrows() from pandas # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.iterrows.html
-class Row(NamedTuple):
-    index: Any
-    values: Mapping[str, Any]
 
 def _normalize_diarization_turns(diarization_result: DiarizationResult) -> List[SpeakerSegment]:
     """
@@ -277,16 +156,18 @@ def _normalize_diarization_turns(diarization_result: DiarizationResult) -> List[
             start_value = getattr(time_span, "start", None)
             end_value = getattr(time_span, "end", None)
             if start_value is None or end_value is None: continue
-
+            # print("tracks")
             speaker_segments.append(SpeakerSegment(start=float(start_value), end=float(end_value), label=str(speaker_label)))
 
     # fallback; dataframe like object exposing iterrows
+    # THIS IS WHERE IT GOES TODO LOOK INTO
     elif callable(iterator_over_rows):
         rows: Iterable[Tuple[Any, Mapping[str, Any]]] = iterator_over_rows()
         for _, row in rows:
             start_value = row.get("start")
             end_value = row.get("end")
             if start_value is None or end_value is None: continue
+            # print("rows")
 
             label_value = row.get("speaker", row.get("label", "UNKNOWN"))
             speaker_segments.append(SpeakerSegment(start=float(start_value), end=float(end_value), label=str(label_value)))
@@ -297,6 +178,8 @@ def _normalize_diarization_turns(diarization_result: DiarizationResult) -> List[
             start_value = row_values.get("start")
             end_value = row_values.get("end")
             if start_value is None or end_value is None: continue
+            
+            # print("dictionary")
 
             label_value = row_values.get("speaker") or row_values.get("label") or "UNKNOWN"
             speaker_segments.append(SpeakerSegment(start=float(start_value), end=float(end_value), label=str(label_value)))
@@ -316,6 +199,7 @@ def _normalize_diarization_turns(diarization_result: DiarizationResult) -> List[
 
 def _default_speaker_for_interval(interval_start: float, interval_end: float, turns: List[SpeakerSegment]) -> Optional[str]:
     """
+    # TODO REWRITE
     picks a default speaker label for a time interval using diarization turns
     returns the speaker label with maximum overlap or None if there is no overlap
     """
@@ -359,19 +243,20 @@ def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_r
             label: Optional[str] = _default_speaker_for_interval(float(word["start"]), float(word["end"]), turns)
             if label is None and previous_label is not None: label = previous_label
             else: label = previous_label
-            if label is None: continue; print("label is none on line 362")
+            if label is None: continue #; print("label is none on line 362")
             word["speaker"] = label
             previous_label = label
 
-def postprocess_segments(alignment_result: AlignmentResult, diarization_result: DiarizationResult, speaker_gap_threshold: float = 0.8) -> List[Utterance]:
+def postprocess_segments(alignment_result: AlignmentResult, speaker_gap_threshold: float = 0.8) -> List[Utterance]:
     """
-    merges word-level speaker labels into utterances using diarization turns as time boundaries
+    merges word-level speaker labels into utterances using diarization turns as time boundaries. core logic
 
     params:
     alignment_result comes from whisperx.assign_word_speakers
     diarization_result is a pyannote-style object, DataFrame, or dict
     speaker_gap_threshold is the maximum permitted silence when merging words and utterances for the same speaker
-
+    
+    # TODO REWRITE
     steps:
         1. normalises diarization_result into a sorted list of speaker turns
         2. for segments without words, picks the label with longest overlap and emits one utterance
@@ -384,7 +269,7 @@ def postprocess_segments(alignment_result: AlignmentResult, diarization_result: 
 
     returns chronologically sorted utterances
     """
-    segments = alignment_result.get("segments")
+    segments: List[SegmentDict] = alignment_result.get("segments")
     if not isinstance(segments, list): raise TranscriptionError("alignment_result must contain a segments list")
 
     # collect all well formed word entries from all segments
@@ -405,7 +290,7 @@ def postprocess_segments(alignment_result: AlignmentResult, diarization_result: 
 
     def _merge_text(previous_text: str, next_text: str) -> str:
         """
-        merges two snippets of text, inserting spaces only when appropriate
+        merges two strings, inserting spaces only when appropriate
         """
         previous_text = (previous_text or "").rstrip()
         next_text = (next_text or "").lstrip()
@@ -424,13 +309,11 @@ def postprocess_segments(alignment_result: AlignmentResult, diarization_result: 
     for word_entry in word_entries:
         raw_label: Any = word_entry.get("speaker")
         start_seconds: float = float(word_entry["start"])
-
         # no label. either attach to the current utterance when close enough or flush the current one and skip
         if not raw_label and current_words:
             gap_seconds: float = start_seconds - float(current_words[-1]["end"])
             # treat unlabeled word as belonging to the current speaker when the gap is small
             if gap_seconds <= speaker_gap_threshold and current_speaker is not None: current_words.append(word_entry); continue
-
             # flush any existing utterance before dropping the unlabeled word
             if current_words and current_speaker is not None:
                 text: str = ""
@@ -440,7 +323,6 @@ def postprocess_segments(alignment_result: AlignmentResult, diarization_result: 
                     end=float(current_words[-1]["end"]),
                     speaker=str(current_speaker),
                     text=text.strip()))
-
             current_speaker = None  # reset speaker state because we lost continuity
             current_words = []      # clear collected words
             continue
@@ -450,6 +332,7 @@ def postprocess_segments(alignment_result: AlignmentResult, diarization_result: 
 
         gap_seconds: float = start_seconds - float(current_words[-1]["end"])
 
+        # TODO explain
         if label == current_speaker and gap_seconds <= speaker_gap_threshold: current_words.append(word_entry)
         else:
             # speaker changed or gap too long -- flush the current utterance and start a new one
@@ -459,7 +342,7 @@ def postprocess_segments(alignment_result: AlignmentResult, diarization_result: 
                 start=float(current_words[0]["start"]),
                 end=float(current_words[-1]["end"]),
                 speaker=str(current_speaker),
-                text=text.strip(),))
+                text=text.strip()))
             current_speaker = label
             current_words = [word_entry]
 
@@ -492,129 +375,102 @@ def postprocess_segments(alignment_result: AlignmentResult, diarization_result: 
 
     return merged_utterances
 
-def transcribe_with_diarization(audio_path: Path, model: FasterWhisperPipeline, output_path: Path, output_format: str) -> None:
+def transcribe_with_diarization(audio_bytes: bytes, model: FasterWhisperPipeline, output_path: Path, speaker_threshold: int) -> None:
     """
     this basically just calls all the functions above to make the full transcription pipeline and write the result to disk
     also computes and prints the time the script took processing the file, i was using that to track how well the script was optimised
     """
-    print(f"\nprocessing: {audio_path}")
-    start_time: float = time.perf_counter()
-
     try:
+        audio: ndarray = _load_audio(audio_bytes)
+
         print("transcribing")
-        transcription_result: TranscriptionResult = transcribe_audio(audio_path, model) # after model ", DEVICE"
+        transcription_result: TranscriptionResult = transcribe_audio(audio, model)
         # torch.cuda.empty_cache() # emptying cache avoids ooms at the cost of processing speed
 
         print("aligning")
-        alignment_result: AlignmentResult = align_transcription(transcription_result["segments"], audio_path)
+        alignment_result: AlignmentResult = align_transcription(audio, transcription_result["segments"])
         # torch.cuda.empty_cache()
 
         print("diarizing")
-        diarization_result: DiarizationResult = run_diarization(audio_path)
+        diarization_result: DiarizationResult = run_diarization(audio, speaker_threshold)
         # torch.cuda.empty_cache()
 
         print("post processing")
         alignment_result = whisperx.assign_word_speakers(diarization_result, alignment_result)
         _fill_missing_word_speakers(alignment_result, diarization_result)
-        utterances = postprocess_segments(alignment_result, diarization_result)
+        utterances = postprocess_segments(alignment_result)
 
     except Exception as e: raise TranscriptionError(f"transcription with diarization failed: {e}") from e
 
-    end_time: float = time.perf_counter()
-    if output_format == "json": file_body = json.dumps([
-            {"start": utterance.start, "end": utterance.end, "speaker": utterance.speaker, "text": utterance.text}
-            for utterance in utterances], ensure_ascii=False, indent=2)
-    else:
-        formatted_lines = [
-        f"[{format_timestamp(utterance_line.start)}] {utterance_line.speaker}: {utterance_line.text}"
-        for utterance_line in utterances]
-        file_body = "\n".join(formatted_lines)
+    # formats the output of the utterances list into "[hh:mm:ss] speaker_xx: text" 
+    formatted_lines: List[str] = [f"[{format_timestamp(utterance_line.start)}] {utterance_line.speaker}: {utterance_line.text}" for utterance_line in utterances]
+    file_body: str = "\n".join(formatted_lines)
 
     output_path.write_text(file_body, encoding="utf-8")
     print(f"saved to: {output_path}")
-    print(f"\ntook {format_duration(end_time-start_time)}")
 
 def main() -> int:
     # total_start_time: float = time.perf_counter()
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file")
-    parser.add_argument("--model", default="medium")                                    # can specify a different whisperx model
-    parser.add_argument("-v", "--verbose", action="store_true")                         # enables all logs for debugging
-    parser.add_argument("-k", "--keep-wav", action="store_true")                        # doesn't delete intermediate .wav
-    parser.add_argument('-o', '--overwrite', action='store_true')                       # overwrites any existing outputs
-    parser.add_argument('-f', '--out_format', choices=['txt','json'], default='txt')    # deprecate? idk if i will actually ever need .json outputs
+    parser.add_argument("--model", default="large")             # can specify a different whisperx model
+    parser.add_argument("-t", "--threshold", default="0.7")     # the smallest gap between utterances, lower = more sensitive
+    parser.add_argument("-v", "--verbose", action="store_true") # enables all logs for debugging
     args = parser.parse_args()
 
-    _configure_verbosity(args.verbose)
-
     # resolve and validate the input path
-    input_path: Path = Path(args.input_file)
-    if not input_path.is_file():
-        print(f"{input_path} does not exist")
-        sys.exit(1)
+    # input_path: Path = Path(args.input_file)
+    # if not input_path.is_file(): print(f"{input_path} does not exist"); sys.exit(1)
 
     # decide whether conversion to .wav is necessary
-    extension:str = input_path.suffix.lower()
-    wav_converted:bool = False
-    wav_path: Path = input_path
+    # extension: str = input_path.suffix.lower()
+    # wav_converted: bool = False
+    # wav_path: Path = input_path
     try:
-        if extension == ".wav": wav_path = input_path;  wav_converted = False
-        else: wav_path = convert_to_wav(input_path);    wav_converted = True
+        
+        # TODO check how long conversion takes
+        # if extension == ".wav": wav_path = input_path;  wav_converted = False
+        # else: wav_path = convert_to_wav(input_path);    wav_converted = True
 
-        def _overwrite(output_path: Path, overwrite_flag: bool) -> Path:
-            """
-            decides the filepath to use for the output file
+        # def _overwrite(output_path: Path, overwrite_flag: bool) -> Path:
+        #     """
+        #     decides the filepath to use for the output file
 
-            if the overwrite flag is false:
-                if output path does not yet exist returns output path
-                if output path already exists appends or increments a counter until a non existing path is found and returns that path
-            otherwise returns the given output path
-            """
-            if not output_path.exists() or overwrite_flag: return output_path
+        #     if the overwrite flag is false:
+        #         if output path does not yet exist returns output path
+        #         if output path already exists appends or increments a counter until a non existing path is found and returns that path
+        #     otherwise returns the given output path
+        #     """
+        #     if not output_path.exists() or overwrite_flag: return output_path
 
-            def bump(path: Path) -> Path:
-                parts = path.stem.rsplit("_", 1)
-                if len(parts) == 2 and parts[1].isdigit():
-                    base = parts[0]
-                    number = int(parts[1]) + 1
-                else:
-                    base = path.stem
-                    number = 1
-                while True:
-                    candidate = path.parent / f"{base}_{number}{path.suffix}"
-                    if not candidate.exists(): return candidate
-                    number += 1
-            return bump(output_path)
+        #     def _bump(path: Path) -> Path:
+        #         parts = path.stem.rsplit("_", 1)
+        #         if len(parts) == 2 and parts[1].isdigit(): base = parts[0]; number = int(parts[1]) + 1
+        #         else: base = path.stem; number = 1
+        #         while True:
+        #             candidate = path.parent / f"{base}_{number}{path.suffix}"
+        #             if not candidate.exists(): return candidate
+        #             number += 1
+        #     return _bump(output_path)
 
         # determine output filename
-        ext = ".json" if args.out_format == "json" else ".txt"
-        output_path = wav_path.with_suffix(ext)
-        output_path = _overwrite(output_path, args.overwrite)
+        # output_path: Path = _overwrite(wav_path.with_suffix(".txt"), args.overwrite)
 
-        if not torch.cuda.is_available():
-            raise TranscriptionError("cuda is unavailable. https://developer.nvidia.com/cuda-downloads")
 
+        # TODO move to models.py
         # load whisperx model
         try:
-            with _suppress_everything(): whisper_model = whisperx.load_model(args.model, DEVICE, compute_type="float16")
-        except RuntimeError as e:
+            whisper_model: FasterWhisperPipeline = whisperx.load_model(args.model, DEVICE, compute_type="float16")
+        except ValueError as e:
             message = str(e).lower()
-            if "float16" in message or "half" in message or "fp16" in message:
-                if VERBOSE: print("float16 is not supported on this device, falling back to float32")
-                with _suppress_everything(): whisper_model = whisperx.load_model(args.model, DEVICE, compute_type="float32")
+            if "float16" in message: whisper_model: FasterWhisperPipeline = whisperx.load_model(args.model, DEVICE, compute_type="float32")
             else: raise TranscriptionError(f"model '{args.model}' failed to load: {e}") from e
         except Exception as e: raise TranscriptionError(f"model '{args.model}' failed to load: {e}") from e
 
         # do the thing!
-        transcribe_with_diarization(wav_path, whisper_model, output_path, args.out_format)
-        return 0
+        transcribe_with_diarization(wav_path, whisper_model, output_path, args.threshold); return 0
     except TranscriptionError as e:
         if VERBOSE: raise
-        print(str(e), file=sys.stderr)
-        return 1
-    finally:
-        if "wav_converted" in locals() and wav_converted and not args.keep_wav and "wav_path" in locals() and wav_path.exists():
-            try: wav_path.unlink()
-            except Exception as e: print(f"could not delete wav: {e}", file=sys.stderr)
+        print(str(e), file=sys.stderr); return 1
     
 if __name__ == "__main__": sys.exit(main())
