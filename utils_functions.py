@@ -16,7 +16,7 @@ _TIME_GRID_CELL: float = 2.0 # duration in seconds of each time grid cell for in
 def load_audio(data:bytes) -> ndarray:
     """
     decodes an audio byte stream into a mono 16 khz float32 waveform via ffmpeg
-    returns a 1d numpy array with samples normalized to [-1.0, 1.0]
+    returns a 1d numpy array with samples normalised to [-1.0, 1.0]
     """
     if not _FFMPEG_AVAILABLE: raise TranscriptionError("ffmpeg not found. https://ffmpeg.org/download.html")
 
@@ -73,7 +73,7 @@ def postprocess_segments(diarization_result: DataFrame, alignment_result: Alignm
 
     steps:
         1. runs whisperx.assign_word_speakers and _fill_missing_word_speakers to attach a speaker label to as many words as possible
-        2. flattens all well formed word entries into a chronogical list of {start, end, word, speaker}
+        2. flattens all well-formed word entries into a chronological list of {start, end, word, speaker}
         3. iterates over word list and builds Utterance runs by grouping consecutive words with the same speaker
         4. merges adjacent Utterance objects for the same speaker when the silence between them is <= _SPEAKER_GAP_THRESHOLD
         5. formats the merged utterances as "[hh:mm:ss] speaker_xx: text" lines
@@ -141,9 +141,9 @@ def postprocess_segments(diarization_result: DataFrame, alignment_result: Alignm
 
         if not raw_label and current_words:
             gap_seconds: float = start_seconds - float (current_words[-1]["end"])
-            # treat unlabeled word as belonging to the current speaker when the gap is small
+            # treat unlabelled word as belonging to the current speaker when the gap is small
             if gap_seconds <= _SPEAKER_GAP_THRESHOLD and current_speaker is not None: current_words.append(word_entry); continue
-            # flush any existing utterance before dropping the unlabeled word
+            # flush any existing utterance before dropping the unlabelled word
             if current_words and current_speaker is not None:
                 text: str = ""
                 for current_word in current_words: text = _merge_text(text, str(current_word["word"]))
@@ -223,7 +223,7 @@ def _format_timestamp(total_seconds: float) -> str:
     seconds: int = int(total_seconds % 60)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-def _normalize_diarization_turns(diarization_result: DataFrame) -> List[SpeakerSegment]:
+def _normalise_diarisation_turns(diarization_result: DataFrame) -> List[SpeakerSegment]:
     """
     normalises diarization outputs into a sorted list of speaker turns
 
@@ -233,7 +233,7 @@ def _normalize_diarization_turns(diarization_result: DataFrame) -> List[SpeakerS
         3. resets negative start times to 0.0 to avoid negative intervals
         4. sorts the cleaned turns by (start, end)
 
-    returns a normalized list of SpeakerSegment
+    returns a normalised list of SpeakerSegment
     """
     segments: List[SpeakerSegment] = []
     if not isinstance(diarization_result, DataFrame): raise TranscriptionError("diarization_result must be a pandas DataFrame")
@@ -319,19 +319,19 @@ def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_r
     gives words in alignment_result speaker labels
 
     steps:
-        1. normalises diarization_result into a sorted list of speaker turns via _normalize_diarization_turns
+        1. normalises diarization_result into a sorted list of speaker turns via _normalise_diarization_turns
         2. sets each segment and its words in order
         3. for words missing a "speaker" field:
             picks a label from overlapping diarization turns when available
             otherwise falls back to the previous word label in the same segment
-        4. leaves words that still cannot be labeled unchanged
+        4. leaves words that still cannot be labelled unchanged
 
     mutates alignment_result and doesn't return anything
     """
     segments: List[SegmentDict] = alignment_result.get("segments") or []
     if not isinstance(segments, list): raise TranscriptionError("alignment_result must contain a segments list")
     # converts diarization_result into a list of SpeakerSegment
-    turns: List[SpeakerSegment] = _normalize_diarization_turns(diarization_result)
+    turns: List[SpeakerSegment] = _normalise_diarisation_turns(diarization_result)
 
     # dictionary that maps cell indices to lists of SpeakerSegment, 
     # used to find candidate speaker segments for each word
@@ -347,7 +347,7 @@ def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_r
             start_value: float = word.get("start")
             end_value: float = word.get("end")
             if not isinstance(start_value, (int, float)) or not isinstance(end_value, (int, float)): continue
-            # already labeled by assign_word_speakers; remember and move on
+            # already labelled by assign_word_speakers; remember and move on
             if "speaker" in word and word["speaker"]: previous_label = str(word["speaker"]); continue
             # primary source for backfilling -- label derived from overlapping diarization turns
             label: Optional[str] = _pick_speaker_for_interval(float(start_value), float(end_value), turn_index)
