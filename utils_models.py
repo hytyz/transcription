@@ -1,5 +1,5 @@
 import os; import torch; import whisperx
-from typing import Optional, cast
+from typing import cast
 from whisperx.asr import FasterWhisperPipeline
 from whisperx.diarize import DiarizationPipeline
 from utils_types import TranscriptionError, AlignMetadata
@@ -7,15 +7,15 @@ from utils_types import TranscriptionError, AlignMetadata
 # determines the n of speakers and how often segments are merged or split across speakers
 DIARIZATION_CLUSTER_THRESHOLD: float = 0.6 # try lowering to reduce overmerging
 _DEVICE: str = "cuda" # required for diarization on gpu
-_ALIGN_MODEL: Optional[torch.nn.Module] = None # cached whisperx alignment model instance
-_ALIGN_METADATA: Optional[AlignMetadata] = None # cached metadata of the alignment model
-_DIARIZATION_PIPELINE: Optional[DiarizationPipeline] = None # cached diarization pipeline instance
-_WHISPER_MODEL: Optional[FasterWhisperPipeline] = None # cached whisperx transcription model instance
+_ALIGN_MODEL: torch.nn.Module | None = None # cached whisperx alignment model instance
+_ALIGN_METADATA: AlignMetadata | None = None # cached metadata of the alignment model
+_DIARIZATION_PIPELINE: DiarizationPipeline | None = None # cached diarization pipeline instance
+_WHISPER_MODEL: FasterWhisperPipeline | None = None # cached whisperx transcription model instance
 
 # for loading the pyannote diarization model
-_token: Optional[str] = os.environ.get("HF_TOKEN")
+_token: str | None = os.environ.get("HF_TOKEN")
 if _token is None or _token.strip() == "": raise TranscriptionError("hf_token is not set")
-__HF_TOKEN: str = _token
+_HF_TOKEN: str = _token
 if not torch.cuda.is_available(): raise TranscriptionError("cuda is unavailable. https://developer.nvidia.com/cuda-downloads")
 
 def get_device() -> str: return _DEVICE
@@ -30,8 +30,8 @@ def get_whisper_model() -> FasterWhisperPipeline:
     except ValueError as e:
         message = str(e).lower()
         if "float16" in message: model = whisperx.load_model(model_name, _DEVICE, compute_type="float32")
-        else: raise
-    except TranscriptionError: raise
+        else: raise Exception(f"failed to load model '{model_name}': {e}") from e
+    except TranscriptionError as e: raise TranscriptionError(f"failed to load model '{model_name}': {e}") from e
     except Exception as e: raise Exception(f"model '{model_name}' failed to load: {e}") from e
 
     _WHISPER_MODEL = model
@@ -49,7 +49,7 @@ def get_diarization_pipeline() -> DiarizationPipeline:
     global _DIARIZATION_PIPELINE
     if _DIARIZATION_PIPELINE is None:
         # https://github.com/m-bain/whisperX/issues/499 -- do NOT switch from the 2.1 model
-        _DIARIZATION_PIPELINE = DiarizationPipeline(model_name="pyannote/speaker-diarization@2.1", use_auth_token=__HF_TOKEN, device=_DEVICE)
+        _DIARIZATION_PIPELINE = DiarizationPipeline(model_name="pyannote/speaker-diarization@2.1", use_auth_token=_HF_TOKEN, device=_DEVICE)
         try: _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": DIARIZATION_CLUSTER_THRESHOLD}}) # type: ignore[attr-defined]
-        except Exception: pass
+        except Exception as e: raise Exception(f"diarization pipeline failed: {e}") from e
     return cast(DiarizationPipeline, _DIARIZATION_PIPELINE)

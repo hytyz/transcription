@@ -1,6 +1,5 @@
 import requests
 from requests import Response
-from typing import Dict
 from transcription import generate_diarized_transcript, get_current_state
 
 # i'm very sure this file is not needed at all
@@ -16,8 +15,8 @@ def download_audio(base_url: str, jobid: str) -> bytes:
 
 def upload_transcription(base_url: str, jobid: str, text_bytes: bytes) -> None:
     """uploads a text transcription for a job id to api"""
-    files: Dict[str, tuple[str, bytes, str]] = {"file": ("transcription.txt", text_bytes, "text/plain")} 
-    data: Dict[str, str] = {"jobid": jobid}
+    files: dict[str, tuple[str, bytes, str]] = {"file": ("transcription.txt", text_bytes, "text/plain")} 
+    data: dict[str, str] = {"jobid": jobid}
     resp: Response = requests.post(f"{base_url}/transcriptions", files=files, data=data) # post request to upload transcription
     resp.raise_for_status()
 
@@ -33,7 +32,7 @@ def process_job(base_url: str, jobid: str) -> None:
 
 def upload_status(base_url: str, jobid: str, state: str) -> None:
     """posts the current pipeline state for a job id to /status"""
-    data: Dict[str, str] = {"jobid": jobid, "state": state}
+    data: dict[str, str] = {"jobid": jobid, "state": state}
     resp: Response = requests.post(f"{base_url}/status", json=data)
     resp.raise_for_status()
 

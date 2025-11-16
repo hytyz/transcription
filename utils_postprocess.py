@@ -1,7 +1,6 @@
 from math import isfinite, ceil
 from pandas import DataFrame
-from re import compile
-from typing import Optional, List, Dict, Set, Pattern
+from re import compile, Pattern
 from utils_types import TranscriptionError, SegmentDict, AlignmentResult, SpeakerSegment, WordEntry
 
 _TIME_GRID_CELL: float = 2.0 # duration in seconds of each time grid cell for indexing diarization turns
@@ -26,20 +25,20 @@ def fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_re
     and falls back to the previous word label in the same segment when needed.
     mutates alignment_result and doesn't return anything
     """
-    segments: List[SegmentDict] = alignment_result.get("segments") or []
+    segments: list[SegmentDict] = alignment_result.get("segments") or []
     if not isinstance(segments, list): raise TranscriptionError("alignment_result must contain a segments list")
     # converts diarization_result into a list of SpeakerSegment
-    turns: List[SpeakerSegment] = _normalise_diarisation_turns(diarization_result)
+    turns: list[SpeakerSegment] = _normalise_diarisation_turns(diarization_result)
 
     # dictionary that maps cell indices to lists of SpeakerSegment, 
     # used to find candidate speaker segments for each word
-    turn_index: Dict[int, List[SpeakerSegment]] = _build_turn_index(turns)
+    turn_index: dict[int, list[SpeakerSegment]] = _build_turn_index(turns)
 
     for segment in segments:
         raw_words = segment.get("words") or []
         if not isinstance(raw_words, list): continue
-        words: List[WordEntry] = raw_words
-        previous_label: Optional[str] = None # last known label inside this segment; used as a fallback
+        words: list[WordEntry] = raw_words
+        previous_label: str | None = None # last known label inside this segment; used as a fallback
 
         for word in words:
             start_value: float = word.get("start")
@@ -48,7 +47,7 @@ def fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_re
             # already labelled by assign_word_speakers; remember and move on
             if "speaker" in word and word["speaker"]: previous_label = str(word["speaker"]); continue
             # primary source for backfilling -- label derived from overlapping diarization turns
-            label: Optional[str] = _pick_speaker_for_interval(float(start_value), float(end_value), turn_index)
+            label: str | None = _pick_speaker_for_interval(float(start_value), float(end_value), turn_index)
             if label is None and previous_label is not None: label = previous_label
             if label is None: continue
             word["speaker"] = label
@@ -60,14 +59,14 @@ def format_timestamp(total_seconds: float) -> str:
     seconds: int = int(total_seconds % 60)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-def _normalise_diarisation_turns(diarization_result: DataFrame) -> List[SpeakerSegment]:
+def _normalise_diarisation_turns(diarization_result: DataFrame) -> list[SpeakerSegment]:
     """
     normalises diarization rows into cleaned SpeakerSegment turns
 
     drops rows with invalid times, sets negative times to 0.0, enforces positive duration,
     and returns segments sorted by (start, end).
     """
-    segments: List[SpeakerSegment] = []
+    segments: list[SpeakerSegment] = []
     if not isinstance(diarization_result, DataFrame): raise TranscriptionError("diarization_result must be a pandas DataFrame")
 
     for _, row in diarization_result.iterrows():
@@ -91,25 +90,25 @@ def _normalise_diarisation_turns(diarization_result: DataFrame) -> List[SpeakerS
     segments.sort(key=lambda segment: (segment.start, segment.end))
     return segments
 
-def _build_turn_index(turns: List[SpeakerSegment]) -> Dict[int, List[SpeakerSegment]]:
+def _build_turn_index(turns: list[SpeakerSegment]) -> dict[int, list[SpeakerSegment]]:
     """
     builds an index of speaker turns keyed by time cells
 
     each SpeakerSegment is assigned to every cell that overlaps its [start, end) interval
     """
     # keys are time cell indices; values are lists of SpeakerSegment instances that overlap that cell index
-    turn_index: Dict[int, List[SpeakerSegment]] = {} 
+    turn_index: dict[int, list[SpeakerSegment]] = {} 
     for turn in turns:
         start_cell_index: int = int(turn.start // _TIME_GRID_CELL) # which cell contains the start time of the current turn
         end_cell_index: int = int(ceil(turn.end / _TIME_GRID_CELL)) # the cell index after the last cell the segment overlaps
         for cell_index in range(start_cell_index, end_cell_index):
             # each cell_index value in this range, register the current turn under that cell
-            cell_turns: Optional[List[SpeakerSegment]] = turn_index.get(cell_index)
+            cell_turns: list[SpeakerSegment] | None = turn_index.get(cell_index)
             if cell_turns is None: turn_index[cell_index] = [turn]
             else: cell_turns.append(turn)
     return turn_index
 
-def _pick_speaker_for_interval(interval_start: float, interval_end: float, turn_index: Dict[int, List[SpeakerSegment]]) -> Optional[str]:
+def _pick_speaker_for_interval(interval_start: float, interval_end: float, turn_index: dict[int, list[SpeakerSegment]]) -> str | None:
     """
     picks a speaker label for [interval_start, interval_end) from diarization turns using a time grid index
 
@@ -122,14 +121,14 @@ def _pick_speaker_for_interval(interval_start: float, interval_end: float, turn_
     start_cell_index: int = int(interval_start // _TIME_GRID_CELL) # cell index that contains the interval start time
     end_cell_index: int = int((interval_end - epsilon) // _TIME_GRID_CELL) + 1 # cell index one past the last cell that the query interval should cover
 
-    best_label: Optional[str] = None
+    best_label: str | None = None
     best_overlap: float = 0.0
 
     # a turn can be stored in multiple cells, this is to track which turns have already been processed for this query
-    visited_turn_ids: Set[int] = set() 
+    visited_turn_ids: set[int] = set() 
 
     for cell_index in range(start_cell_index, end_cell_index):
-        cell_turns: Optional[List[SpeakerSegment]] = turn_index.get(cell_index)
+        cell_turns: list[SpeakerSegment] | None = turn_index.get(cell_index)
         if not cell_turns: continue
 
         for turn in cell_turns:

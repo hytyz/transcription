@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, TypedDict, Dict
+from typing import TypedDict
 
 #internal data structures
 
@@ -29,11 +29,21 @@ class SegmentDict(TypedDict):
 
 class TranscriptionResult(TypedDict):
     """output of the transcription step from whisperx"""
-    segments: List[SegmentDict]
+    segments: list[SegmentDict]
+
+class WordEntry(TypedDict):
+    """word-level entry attached to aligned segments from whisperx"""
+    start: float
+    end: float
+    word: str
+    speaker: str | None
+class WordAlignedSegmentDict(SegmentDict):
+    """segment with start, end, text, and its list of aligned word entries"""
+    words: list[WordEntry]
 
 class AlignmentResult(TypedDict):
-    """output of the alignment step from whisperx"""
-    segments: List[SegmentDict]
+    """container for the alignment step output holding a list of word-aligned segments"""
+    segments: list[WordAlignedSegmentDict]
 
 class DiarizationSegmentDict(TypedDict, total=False):
     """a single diarization segment"""
@@ -42,17 +52,11 @@ class DiarizationSegmentDict(TypedDict, total=False):
     speaker: str
     label: str
 
-class DiarizationDict(TypedDict): segments: List[DiarizationSegmentDict]
+class DiarizationDict(TypedDict): segments: list[DiarizationSegmentDict]
 
 class AlignMetadata(TypedDict):
     """metadata of the alignment model"""
     language: str
-    dictionary: Dict[str, int]
+    dictionary: dict[str, int]
     type: str
 
-class WordEntry(TypedDict):
-    """word-level entry attached to aligned segments from whisperx"""
-    start: float
-    end: float
-    word: str
-    speaker: str | None
