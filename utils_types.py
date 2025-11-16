@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, List, Mapping, TypedDict, Union, NamedTuple
+from typing import Any, List, Mapping, TypedDict, Dict, Union, NamedTuple
 from pandas import DataFrame
 from pyannote.core import Annotation
 
@@ -71,6 +71,14 @@ class DiarizationDict(TypedDict):
     """
     segments: List[DiarizationSegmentDict]
 
+class AlignMetadata(TypedDict):
+    """
+    metadata describing the alignment model returned by whisperx.load_align_model
+    """
+    language: str
+    dictionary: Dict[str, int]
+    type: str
+
 # diarization output type used throughout
 DiarizationResult = Union[Annotation, DataFrame, DiarizationDict]
 
@@ -86,3 +94,4 @@ class Track(NamedTuple):
 class Row(NamedTuple):
     index: Any
     values: Mapping[str, Any]
+

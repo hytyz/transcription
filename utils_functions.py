@@ -1,88 +1,15 @@
-import logging; import warnings; from lightning.pytorch.utilities import disable_possible_user_warnings
-
-def _configure_verbosity(verbose: bool) -> None:
-    """
-    sets the global VERBOSE flag and configures warnings and logging levels
-    """
-    global VERBOSE
-    VERBOSE = verbose
-    root_logger = logging.getLogger()
-
-    if VERBOSE:
-        warnings.resetwarnings(); warnings.filterwarnings("default")
-        root_logger.setLevel(logging.INFO)
-        for handler in root_logger.handlers: handler.setLevel(logging.INFO)
-        logging.getLogger("pyannote").setLevel(logging.INFO)
-        logging.getLogger("pytorch_lightning").setLevel(logging.INFO)
-        logging.getLogger("whisperx").setLevel(logging.INFO)
-    else:
-        disable_possible_user_warnings(); warnings.filterwarnings("ignore")
-        root_logger.setLevel(logging.ERROR)
-        for handler in root_logger.handlers: handler.setLevel(logging.ERROR)
-        logging.getLogger("pyannote").setLevel(logging.ERROR)
-        logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
-        logging.getLogger("whisperx").setLevel(logging.ERROR)
-
-_configure_verbosity(False)
-
-import os; import sys;
-import contextlib; import shutil
-import subprocess; import math
-import whisperx; import torch; import re
-# from pydub import AudioSegment
-from pathlib import Path
-from whisperx.asr import FasterWhisperPipeline
-from typing import Optional, List, Any, Iterator, Iterable, Callable, Mapping, Pattern, Tuple
-from numpy import ndarray
+import math; import re; import shutil
+from typing import Optional, List, Any, Mapping, Iterable, Callable, Pattern, Tuple
+import ffmpeg; import numpy; import torch
+import whisperx; from numpy import ndarray
 from utils_types import *
+from utils_models import _get_align_model, _get_diarization_pipeline, get_device, _load_whisper_model
+from whisperx.asr import FasterWhisperPipeline
 
-DEVICE: str = "cuda"            # required for diarization on gpu
-VERBOSE: bool = False           # controls logging and output suppression
-_ALIGN_MODEL = None             # cached whisperx alignment model instance, created on first use by _get_align_model
-_ALIGN_METADATA = None          # cached metadata of the alignment model
-_DIARIZATION_PIPELINE = None    # cached diarization pipeline instance, created on first use by _get_diarization_pipeline
+DEVICE: str = get_device()
+SPEAKER_GAP_THRESHOLD: float = 0.7 # maximum permitted silence when merging words and utterances for the same speaker
 
-# for loading the pyannote diarization model
-token: Optional[str] = os.environ.get("HF_TOKEN")
-if token is None or token.strip() == "":
-    print("missing huggingface token. `set/export HF_TOKEN=token`")
-    sys.exit(1)
-HF_TOKEN: str = token
-
-def _get_align_model():
-    """
-    loads and caches the whisperx alignment model and metadata
-    subsequent calls reuse the cached objects instead of reloading the model
-    """
-    global _ALIGN_MODEL, _ALIGN_METADATA
-    if _ALIGN_MODEL is None or _ALIGN_METADATA is None: _ALIGN_MODEL, _ALIGN_METADATA = whisperx.load_align_model(language_code="en", device=DEVICE)
-    return _ALIGN_MODEL, _ALIGN_METADATA
-
-def _get_diarization_pipeline(speaker_threshold: int):
-    
-    """
-    loads and caches the pyannote diarization pipeline used by whisperx
-    subsequent calls reuse the cached pipeline instance
-    """
-    global _DIARIZATION_PIPELINE
-    if _DIARIZATION_PIPELINE is None:
-        # TODO find the actual github repo and cite it
-        _DIARIZATION_PIPELINE = whisperx.diarize.DiarizationPipeline(model_name="pyannote/speaker-diarization@2.1", use_auth_token=HF_TOKEN, device=DEVICE) # DO NOT CHANGE THIS
-        try: _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": speaker_threshold}}) 
-        except Exception as e: 
-            if VERBOSE: print(f"could not set diarization clustering threshold: {e}")
-    return _DIARIZATION_PIPELINE
-
-# TODO look into deprecating
-@contextlib.contextmanager
-def _suppress_everything() -> Iterator[None]:
-    """
-    redirects stdout and stderr to /dev/null until the context exits, unless VERBOSE
-    """
-    if VERBOSE: yield; return
-    with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull), contextlib.redirect_stderr(devnull): yield
-
-def format_timestamp(total_seconds: float) -> str:
+def _format_timestamp(total_seconds: float) -> str:
     """
     converts a timestamp in seconds to hh:mm:ss (like 3661.3 to 01:01:01)
     """
@@ -91,81 +18,55 @@ def format_timestamp(total_seconds: float) -> str:
     seconds: int = int(total_seconds % 60)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-# TODO deprecate
-def format_duration(seconds: float) -> str:
+def load_audio(data:bytes) -> ndarray:
     """
-    converts a duration in seconds to a readable string
-    this is for reporting total processing time to the console
-    """
-    def _plural(unit: str, value: int) -> str: return f"{value} {unit}" + ("s" if value != 1 else "")
-    if seconds < 60: return f"{seconds:.1f} {'second' if int(round(seconds)) == 1 else 'seconds'}"
-    minutes, remaining_seconds = divmod(int(seconds), 60)
-    if minutes < 60: return f"{_plural('minute', minutes)} and {_plural('second', int(remaining_seconds))}"
-    hours, minutes = divmod(minutes, 60)
-    return f"{_plural('hour', hours)}, {_plural('minute', minutes)} and {_plural('second', int(remaining_seconds))}"
-
-# try a different way
-def convert_to_wav(input_path: Path) -> Path:
-    """
-    converts an audio file to a 16 kHz, 16.bit pcm wav using ffmpeg
-    the output file shares the same base name as the input, but with a .wav extension
-    whisperx requires .wav
+    decodes an audio byte stream into a mono 16 khz float32 waveform via ffmpeg
+    returns a 1d numpy array with samples normalized to [-1.0, 1.0]
     """
     if not shutil.which("ffmpeg"): raise TranscriptionError("ffmpeg not found. https://ffmpeg.org/download.html")
 
-    wav_output_path = input_path.with_suffix(".wav")
-    if not input_path.is_file(): raise TranscriptionError(f"'{input_path}' not found")
+    process = (ffmpeg.input("pipe:0")
+               .output("pipe:1", format="s16le", acodec="pcm_s16le", ac=1, ar="16000")
+               .run_async(pipe_stdin=True, pipe_stdout=True, pipe_stderr=True))
+    out: bytes
+    err: bytes
+    out, err = process.communicate(input = data)
+    if process.returncode != 0: raise TranscriptionError(f"ffmpeg decoding failed: {err.decode(errors='ignore')}")
+    
+    audio = numpy.frombuffer(out, dtype=numpy.int16)
+    if audio.size == 0: raise TranscriptionError("decoded audio is empty")
+    return audio.astype("float32") / 32768.0
 
-    ffmpeg_cmd = [
-        "ffmpeg", "-y",         # overwrites any existing output file
-        "-i", str(input_path),  # the file passed in params as source
-        # "-ac", "1",           # whisperx docs recommend mono but idk aobut that chief
-        "-ar", "16000",         # sample rate 16 kHz
-        "-sample_fmt", "s16",   # sample format 16-bit signed
-        "-c:a", "pcm_s16le",    # pcm_s16le codec
-        str(wav_output_path),
-    ]
 
-    try:
-        ffmpeg_proc = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if ffmpeg_proc.returncode != 0: raise RuntimeError(ffmpeg_proc.stderr.decode(errors="ignore"))
-        if VERBOSE: print(f"{input_path} converted to {wav_output_path}")
-        return wav_output_path
-    except Exception as e:
-        raise TranscriptionError(f"file conversion failed: {e}") from e
-
-def transcribe_audio(audio_path: Path, model: FasterWhisperPipeline) -> TranscriptionResult:
+def transcribe_audio(audio: ndarray) -> TranscriptionResult:
     """
     performs transcription on the given audio using a preloaded whisperx model
     uses torch.inference_mode() to disable gradient tracking for speed and lower memory usage
 
     returns a dictionary with the raw transcription output: segments is a list of segments, each including
     start and end timestamps, and text string
-    """     
-    with _suppress_everything():
-        audio: ndarray = whisperx.load_audio(str(audio_path))
-        with torch.inference_mode(): result: TranscriptionResult = model.transcribe(audio, language="en", task="transcribe")
+    """
+    whisper_model: FasterWhisperPipeline = _load_whisper_model("large")
+    with torch.inference_mode(): result: TranscriptionResult = whisper_model.transcribe(audio, language="en", task="transcribe")
     return result
 
-def align_transcription(segments: List[SegmentDict], audio_path: Path) -> AlignmentResult:
+def align_transcription(audio: ndarray, segments: List[SegmentDict]) -> AlignmentResult:
     """
     aligns raw whisperx segments with the audio via the cached whisperx alignment model
     takes the segment list from a TranscriptionResult and returns an AlignmentResult 
         its "segments" list preserves the original segment-level fields and adds word-level timing information in a "words" field
     """
-    with _suppress_everything():
-        align_model, align_metadata = _get_align_model()
-        alignment_result: AlignmentResult = whisperx.align(segments, align_model, align_metadata, str(audio_path), DEVICE)
+    align_model, align_metadata = _get_align_model()
+    alignment_result: AlignmentResult = whisperx.align(segments, align_model, align_metadata, audio, DEVICE)
     return alignment_result
 
-def run_diarization(audio_path: Path, speaker_threshold: int) -> DiarizationResult:
+def run_diarization(audio: ndarray) -> DiarizationResult:
     """
     runs speaker diarization on an audio file using the cached pipeline through whisperx
     returns an object describing contiguous time spans for each detected speaker
     """
-    with _suppress_everything():
-        diarization_pipeline = _get_diarization_pipeline(speaker_threshold)
-        diarization_result: DiarizationResult = diarization_pipeline(whisperx.load_audio(str(audio_path)), min_speakers=2, max_speakers=5)
+    diarization_pipeline = _get_diarization_pipeline(SPEAKER_GAP_THRESHOLD)
+    diarization_result: DiarizationResult = diarization_pipeline(audio, min_speakers=2, max_speakers=5)
     return diarization_result
 
 def _normalize_diarization_turns(diarization_result: DiarizationResult) -> List[SpeakerSegment]:
@@ -285,14 +186,13 @@ def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_r
             word["speaker"] = label
             previous_label = label
 
-def postprocess_segments(alignment_result: AlignmentResult, speaker_gap_threshold: float = 0.8) -> List[Utterance]:
+def postprocess_segments(diarization_result: DiarizationResult, alignment_result: AlignmentResult) -> bytes:
     """
     merges word-level speaker labels into utterances using diarization turns as time boundaries. core logic
 
     params:
     alignment_result comes from whisperx.assign_word_speakers
     diarization_result is a pyannote-style object, DataFrame, or dict
-    speaker_gap_threshold is the maximum permitted silence when merging words and utterances for the same speaker
     
     # TODO REWRITE
     steps:
@@ -302,11 +202,14 @@ def postprocess_segments(alignment_result: AlignmentResult, speaker_gap_threshol
             splits by turn boundaries into subintervals
             derives a default speaker per subinterval from overlapping turns
             for each word uses its own "speaker", the interval default, or "UNKNOWN"
-        4. groups consecutive words with the same label and gap <= speaker_gap_threshold into utterances
-        5. sorts utterances and merges adjacent utterances from the same speaker when the gap <= speaker_gap_threshold
+        4. groups consecutive words with the same label and gap <= SPEAKER_GAP_THRESHOLD into utterances
+        5. sorts utterances and merges adjacent utterances from the same speaker when the gap <= SPEAKER_GAP_THRESHOLD
 
     returns chronologically sorted utterances
     """
+    alignment_result = whisperx.assign_word_speakers(diarization_result, alignment_result)
+    _fill_missing_word_speakers(alignment_result, diarization_result)
+
     segments: List[SegmentDict] = alignment_result.get("segments")
     if not isinstance(segments, list): raise TranscriptionError("alignment_result must contain a segments list")
 
@@ -351,7 +254,7 @@ def postprocess_segments(alignment_result: AlignmentResult, speaker_gap_threshol
         if not raw_label and current_words:
             gap_seconds: float = start_seconds - float(current_words[-1]["end"])
             # treat unlabeled word as belonging to the current speaker when the gap is small
-            if gap_seconds <= speaker_gap_threshold and current_speaker is not None: current_words.append(word_entry); continue
+            if gap_seconds <= SPEAKER_GAP_THRESHOLD and current_speaker is not None: current_words.append(word_entry); continue
             # flush any existing utterance before dropping the unlabeled word
             if current_words and current_speaker is not None:
                 text: str = ""
@@ -371,7 +274,7 @@ def postprocess_segments(alignment_result: AlignmentResult, speaker_gap_threshol
         gap_seconds: float = start_seconds - float(current_words[-1]["end"])
 
         # TODO explain
-        if label == current_speaker and gap_seconds <= speaker_gap_threshold: current_words.append(word_entry)
+        if label == current_speaker and gap_seconds <= SPEAKER_GAP_THRESHOLD: current_words.append(word_entry)
         else:
             # speaker changed or gap too long -- flush the current utterance and start a new one
             text = ""
@@ -402,7 +305,7 @@ def postprocess_segments(alignment_result: AlignmentResult, speaker_gap_threshol
         last_utterance = merged_utterances[-1]
         gap_seconds = max(0.0, float(utterance.start) - float(last_utterance.end))
 
-        if utterance.speaker == last_utterance.speaker and gap_seconds <= speaker_gap_threshold:
+        if utterance.speaker == last_utterance.speaker and gap_seconds <= SPEAKER_GAP_THRESHOLD:
             # same speaker and short gap. extend the previous utterance boundaries and text
             merged_utterances[-1] = Utterance(
                 start=last_utterance.start,
@@ -411,4 +314,9 @@ def postprocess_segments(alignment_result: AlignmentResult, speaker_gap_threshol
                 text=_merge_text(last_utterance.text, utterance.text))
         else: merged_utterances.append(utterance) # different speaker or long silence -- start a new utterance
 
-    return merged_utterances
+    # formats the output of the merged utterances list into "[hh:mm:ss] speaker_xx: text" 
+    formatted_lines: List[str] = [
+        f"[{_format_timestamp(utterance_line.start)}] {utterance_line.speaker}: {utterance_line.text}" 
+        for utterance_line in merged_utterances]
+    file_body: str = "\n".join(formatted_lines)
+    return file_body.encode("utf-8")
