@@ -1,6 +1,32 @@
+import logging; import warnings; from lightning.pytorch.utilities import disable_possible_user_warnings
+
+def _configure_verbosity(verbose: bool) -> None:
+    """
+    sets the global VERBOSE flag and configures warnings and logging levels
+    """
+    global VERBOSE
+    VERBOSE = verbose
+    root_logger = logging.getLogger()
+
+    if VERBOSE:
+        warnings.resetwarnings(); warnings.filterwarnings("default")
+        root_logger.setLevel(logging.INFO)
+        for handler in root_logger.handlers: handler.setLevel(logging.INFO)
+        logging.getLogger("pyannote").setLevel(logging.INFO)
+        logging.getLogger("pytorch_lightning").setLevel(logging.INFO)
+        logging.getLogger("whisperx").setLevel(logging.INFO)
+    else:
+        disable_possible_user_warnings(); warnings.filterwarnings("ignore")
+        root_logger.setLevel(logging.ERROR)
+        for handler in root_logger.handlers: handler.setLevel(logging.ERROR)
+        logging.getLogger("pyannote").setLevel(logging.ERROR)
+        logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+        logging.getLogger("whisperx").setLevel(logging.ERROR)
+
+_configure_verbosity(False)
+
 import os; import sys; import time
-import logging; import warnings; import shutil
-import contextlib; import argparse
+import contextlib; import argparse; import shutil
 import subprocess; import json; import math
 import whisperx; import torch; import re
 # from pydub import AudioSegment
@@ -10,7 +36,7 @@ from pandas import DataFrame
 from dataclasses import dataclass
 from typing import Optional, List, Any, Iterator, Iterable, NamedTuple, Callable, Mapping, TypedDict, Union, Pattern, Tuple
 from pyannote.core import Annotation
-from lightning.pytorch.utilities import disable_possible_user_warnings
+from numpy import ndarray
 
 DEVICE: str = "cuda"            # required for diarization on gpu
 VERBOSE: bool = False           # controls logging and output suppression
@@ -116,29 +142,10 @@ def _get_diarization_pipeline():
     global _DIARIZATION_PIPELINE
     if _DIARIZATION_PIPELINE is None:
         _DIARIZATION_PIPELINE = whisperx.diarize.DiarizationPipeline(model_name="pyannote/speaker-diarization@2.1", use_auth_token=HF_TOKEN, device=DEVICE)
-        try: _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": 0.70}})
+        try: _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": 0.60}})
         except Exception as e: 
             if VERBOSE: print(f"could not set diarization clustering threshold: {e}")
     return _DIARIZATION_PIPELINE
-
-def _configure_verbosity(verbose: bool) -> None:
-    """
-    sets the global VERBOSE flag and configures warnings and logging levels
-    """
-    global VERBOSE
-    VERBOSE = verbose
-    if VERBOSE:
-        warnings.resetwarnings(); warnings.filterwarnings("default")
-        logging.basicConfig(level=logging.INFO)
-        logging.getLogger("pyannote").setLevel(logging.INFO)
-        logging.getLogger("pytorch_lightning").setLevel(logging.INFO)
-        logging.getLogger("whisperx").setLevel(logging.INFO)
-    else:
-        disable_possible_user_warnings(); warnings.filterwarnings("ignore")
-        logging.basicConfig(level=logging.ERROR)
-        logging.getLogger("pyannote").setLevel(logging.ERROR)
-        logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
-        logging.getLogger("whisperx").setLevel(logging.ERROR)
 
 @contextlib.contextmanager
 def _suppress_everything() -> Iterator[None]:
@@ -163,7 +170,7 @@ def format_duration(seconds: float) -> str:
     this is for reporting total processing time to the console
     """
     def _plural(unit: str, value: int) -> str: return f"{value} {unit}" + ("s" if value != 1 else "")
-    if seconds < 60: return f"{seconds:.1f} {"second" if int(round(seconds)) == 1 else "seconds"}"
+    if seconds < 60: return f"{seconds:.1f} {'second' if int(round(seconds)) == 1 else 'seconds'}"
     minutes, remaining_seconds = divmod(int(seconds), 60)
     if minutes < 60: return f"{_plural('minute', minutes)} and {_plural('second', int(remaining_seconds))}"
     hours, minutes = divmod(minutes, 60)
@@ -207,7 +214,8 @@ def transcribe_audio(audio_path: Path, model: FasterWhisperPipeline) -> Transcri
     1. start and end timestamps, and 2. text string
     """     
     with _suppress_everything():
-        with torch.inference_mode(): result: TranscriptionResult = model.transcribe(str(audio_path), language="en", task="transcribe")
+        audio: ndarray = whisperx.load_audio(str(audio_path))
+        with torch.inference_mode(): result: TranscriptionResult = model.transcribe(audio, language="en", task="transcribe")
     return result
 
 def align_transcription(segments: List[SegmentDict], audio_path: Path) -> AlignmentResult:
@@ -228,7 +236,8 @@ def run_diarization(audio_path: Path) -> DiarizationResult:
     """
     with _suppress_everything():
         diarization_pipeline = _get_diarization_pipeline()
-        diarization_result: DiarizationResult = diarization_pipeline(str(audio_path))
+        diarization_result: DiarizationResult = diarization_pipeline(whisperx.load_audio(str(audio_path)), min_speakers=2, max_speakers=5)
+
     return diarization_result
 
 # diarization tuple yielded by itertracks() from pyannote # https://pyannote.github.io/pyannote-core/reference.html#pyannote.core.Annotation.itertracks
@@ -294,16 +303,65 @@ def _normalize_diarization_turns(diarization_result: DiarizationResult) -> List[
 
     cleaned_segments: List[SpeakerSegment] = []
     for speaker_span in speaker_segments:
-        start_seconds = float(speaker_span.start)
-        end_seconds = float(speaker_span.end)
+        start_seconds: float = float(speaker_span.start)
+        end_seconds: float = float(speaker_span.end)
         if not (math.isfinite(start_seconds) and math.isfinite(end_seconds)): continue
-        if end_seconds <= start_seconds: continue
         if start_seconds < 0.0: start_seconds = 0.0
+        if end_seconds < 0.0: end_seconds = 0.0
+        if end_seconds <= start_seconds: continue
         cleaned_segments.append(SpeakerSegment(start=start_seconds, end=end_seconds, label=speaker_span.label))
 
     cleaned_segments.sort(key=lambda segment: (segment.start, segment.end))
     return cleaned_segments
 
+def _default_speaker_for_interval(interval_start: float, interval_end: float, turns: List[SpeakerSegment]) -> Optional[str]:
+    """
+    picks a default speaker label for a time interval using diarization turns
+    returns the speaker label with maximum overlap or None if there is no overlap
+    """
+    best_label: Optional[str] = None
+    best_overlap: float = 0.0
+    for turn in turns:
+        overlap_start: float = max(interval_start, turn.start)
+        overlap_end: float = min(interval_end, turn.end)
+        if overlap_end <= overlap_start: continue
+        overlap_duration: float = overlap_end - overlap_start
+        if overlap_duration > best_overlap:
+            best_overlap = overlap_duration
+            best_label = turn.label
+    return best_label
+
+def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_result: DiarizationResult) -> None:
+    """
+    gives words in alignment_result speaker labels
+
+    steps:
+        1. normalises diarization_result into a sorted list of speaker turns via _normalize_diarization_turns
+        2. sets each segment and its words in order
+        3. for words missing a "speaker" field:
+            picks a label from overlapping diarization turns when available
+            otherwise falls back to the previous word label in the same segment
+        4. leaves words that still cannot be labeled unchanged
+
+    mutates alignment_result and doesn't return anything
+    """
+    segments: List[SegmentDict] = alignment_result.get("segments") or []
+    if not isinstance(segments, list): raise TranscriptionError("alignment_result must contain a segments list")
+    turns: List[SpeakerSegment] = _normalize_diarization_turns(diarization_result)
+    for segment in segments:
+        words = segment.get("words") or []
+        previous_label: Optional[str] = None # last known label inside this segment; used as a fallback
+        for word in words:
+            if not isinstance(word.get("start"), (int, float)) or not isinstance(word.get("end"), (int, float)): continue
+            # already labeled by assign_word_speakers; remember and move on
+            if "speaker" in word and word["speaker"]: previous_label = str(word["speaker"]); continue
+            # primary source for backfilling -- label derived from overlapping diarization turns
+            label: Optional[str] = _default_speaker_for_interval(float(word["start"]), float(word["end"]), turns)
+            if label is None and previous_label is not None: label = previous_label
+            else: label = previous_label
+            if label is None: continue; print("label is none on line 362")
+            word["speaker"] = label
+            previous_label = label
 
 def postprocess_segments(alignment_result: AlignmentResult, diarization_result: DiarizationResult, speaker_gap_threshold: float = 0.8) -> List[Utterance]:
     """
@@ -312,129 +370,125 @@ def postprocess_segments(alignment_result: AlignmentResult, diarization_result: 
     params:
     alignment_result comes from whisperx.assign_word_speakers
     diarization_result is a pyannote-style object, DataFrame, or dict
-    speaker_gap_threshold is the maximum permitted silence between consecutive words from the same speaker
+    speaker_gap_threshold is the maximum permitted silence when merging words and utterances for the same speaker
 
     steps:
         1. normalises diarization_result into a sorted list of speaker turns
-        2. for each aligned segment, calculates cutpoints at turn boundaries inside the segment and splits the segment into subintervals
-        3. for each subinterval, finds a default speaker label from the turn that covers the subinterval start, if any
-        4. within each subinterval
-            assigns each word a label: the per-word "speaker" if present, otherwise the subinterval default label
-            groups consecutive words that share the same label and are separated by at most speaker_gap_threshold
-        5. joins word strings and avoids unnecessary whitespace
+        2. for segments without words, picks the label with longest overlap and emits one utterance
+        3. for segments with words:
+            splits by turn boundaries into subintervals
+            derives a default speaker per subinterval from overlapping turns
+            for each word uses its own "speaker", the interval default, or "UNKNOWN"
+        4. groups consecutive words with the same label and gap <= speaker_gap_threshold into utterances
+        5. sorts utterances and merges adjacent utterances from the same speaker when the gap <= speaker_gap_threshold
 
     returns chronologically sorted utterances
     """
     segments = alignment_result.get("segments")
     if not isinstance(segments, list): raise TranscriptionError("alignment_result must contain a segments list")
 
+    # collect all well formed word entries from all segments
+    word_entries: List[Mapping[str, Any]] = []
+    for segment in segments:
+        segment_words: List[Mapping[str, Any]] = segment.get("words") or []
+        for word_entry in segment_words:
+            if not isinstance(word_entry.get("start"), (int, float)): continue
+            if not isinstance(word_entry.get("end"), (int, float)): continue
+            if not isinstance(word_entry.get("word"), str): continue
+            word_entries.append(word_entry)
+
+    # ensure a global chronological order before grouping
+    word_entries.sort(key=lambda word_entry: float(word_entry["start"]))
+
     utterances: List[Utterance] = []
     leading_punctuation_regex: Pattern[str] = re.compile(r"^[\.\,\!\?\;\:\%\)\]\}]")
-    epsilon: float = 0.001
 
     def _merge_text(previous_text: str, next_text: str) -> str:
+        """
+        merges two snippets of text, inserting spaces only when appropriate
+        """
         previous_text = (previous_text or "").rstrip()
         next_text = (next_text or "").lstrip()
-        if not previous_text: return next_text # the merged result is just the new segment text
-        if not next_text: return previous_text # nothing to merge
+        if not previous_text: return next_text  # the merged result is just the new text
+        if not next_text: return previous_text  # nothing to append
         last_char: str = previous_text[-1]
         if last_char in "-([{\"'": return previous_text + next_text
-        if leading_punctuation_regex.match(next_text): return previous_text + next_text
+        if leading_punctuation_regex.match(next_text): return previous_text + next_text 
         return previous_text + " " + next_text
 
-    turns: List[SpeakerSegment] = _normalize_diarization_turns(diarization_result) # sorted turn list
-    turn_index: int = 0 # faux pointer into turns
-    n_turns: int = len(turns) # cached length for bounds checks
+    # current in progress utterance state
+    current_speaker: Optional[str] = None  # label of the current speaker run
+    current_words: List[Mapping[str, Any]] = []  # words collected for the current speaker run
 
-    for segment in segments:
-        # pull per-word data and keep only well-formed word entries
-        words: List[Mapping[str, Any]] = segment.get("words") or []
-        words = [word for word in words if isinstance(word.get("start"), (int, float)) and isinstance(word.get("end"), (int, float)) and isinstance(word.get("word"), str)]
-        if not words:
-            segment_text: str = segment.get("text")
-            seg_start_raw: float = segment.get("start")
-            seg_end_raw: float = segment.get("end")
-            if (isinstance(segment_text, str) and isinstance(seg_start_raw, (int, float)) and isinstance(seg_end_raw, (int, float))
-                and math.isfinite(float(seg_start_raw)) and math.isfinite(float(seg_end_raw)) and float(seg_end_raw) > float(seg_start_raw)):
-                seg_start: float = max(0.0, float(seg_start_raw))
-                seg_end: float = float(seg_end_raw)
-                label_durations: dict[str, float] = {}
-                for turn in turns:
-                    if turn.end <= seg_start: continue
-                    if turn.start >= seg_end: break
+    # first pass; build utterances directly from words and their speaker labels
+    for word_entry in word_entries:
+        raw_label: Any = word_entry.get("speaker")
+        start_seconds: float = float(word_entry["start"])
 
-                    overlap_start: float = max(seg_start, turn.start)
-                    overlap_end: float = min(seg_end, turn.end)
-                    if overlap_end <= overlap_start: continue
-                    duration: float = overlap_end - overlap_start
-                    label_durations[turn.label] = label_durations.get(turn.label, 0.0) + duration
+        # no label. either attach to the current utterance when close enough or flush the current one and skip
+        if not raw_label and current_words:
+            gap_seconds: float = start_seconds - float(current_words[-1]["end"])
+            # treat unlabeled word as belonging to the current speaker when the gap is small
+            if gap_seconds <= speaker_gap_threshold and current_speaker is not None: current_words.append(word_entry); continue
 
-                if label_durations: speaker_label = max(label_durations.items(), key=lambda value: value[1])[0]
-                else: speaker_label = "UNKNOWN"
-                utterances.append( Utterance( start=seg_start, end=seg_end, speaker=speaker_label, text=segment_text.strip()))
+            # flush any existing utterance before dropping the unlabeled word
+            if current_words and current_speaker is not None:
+                text: str = ""
+                for current_word in current_words: text = _merge_text(text, str(current_word["word"]))
+                utterances.append(Utterance(
+                    start=float(current_words[0]["start"]),
+                    end=float(current_words[-1]["end"]),
+                    speaker=str(current_speaker),
+                    text=text.strip()))
+
+            current_speaker = None  # reset speaker state because we lost continuity
+            current_words = []      # clear collected words
             continue
 
-        seg_start: float = float(words[0]["start"])
-        seg_end: float = float(words[-1]["end"])
+        label: str = str(raw_label)
+        if not current_words: current_speaker = label; current_words = [word_entry]; continue # starting a new utterance run
 
-        while turn_index < n_turns and turns[turn_index].end <= seg_start: turn_index += 1 # advance to first possibly overlapping turn
+        gap_seconds: float = start_seconds - float(current_words[-1]["end"])
 
-        cutpoints: List[float] = [seg_start, seg_end] # start with segment bounds
-        scan_index: int = turn_index # scan turns that intersect the segment
-        while scan_index < n_turns and turns[scan_index].start < seg_end:
-            start: float = turns[scan_index].start
-            end: float = turns[scan_index].end
-            # determine where to split: at turn start or end
-            if seg_start < start < seg_end: cutpoints.append(start)
-            if seg_start < end < seg_end: cutpoints.append(end)
-            if start >= seg_end: break
-            scan_index += 1
-        cutpoints = sorted(set(cutpoints)) 
+        if label == current_speaker and gap_seconds <= speaker_gap_threshold: current_words.append(word_entry)
+        else:
+            # speaker changed or gap too long -- flush the current utterance and start a new one
+            text = ""
+            for current_word in current_words: text = _merge_text(text, str(current_word["word"]))
+            utterances.append(Utterance(
+                start=float(current_words[0]["start"]),
+                end=float(current_words[-1]["end"]),
+                speaker=str(current_speaker),
+                text=text.strip(),))
+            current_speaker = label
+            current_words = [word_entry]
 
-        word_index: int = 0 # faux pointer again but for words
-        for i in range(len(cutpoints) - 1): # iterate each subinterval produced by cutpoints
-            start: float = cutpoints[i]
-            end = cutpoints[i + 1]
-            if end - start <= epsilon: continue
+    # flush any remaining utterance after the loop
+    if current_words and current_speaker is not None:
+        text = ""
+        for current_word in current_words: text = _merge_text(text, str(current_word["word"]))
+        utterances.append(Utterance(
+            start=float(current_words[0]["start"]),
+            end=float(current_words[-1]["end"]),
+            speaker=str(current_speaker),
+            text=text.strip()))
 
-            # collect words inside the subinterval
-            interval_words: List[Mapping[str, Any]] = []
-            while word_index < len(words) and float(words[word_index]["end"]) <= start + epsilon: word_index += 1
-            while word_index < len(words) and float(words[word_index]["start"]) <= end - epsilon: interval_words.append(words[word_index]); word_index += 1
-            if not interval_words: continue
-
-            current_label: Optional[str] = None
-            current_words: List[Mapping[str, Any]] = []
-            for word in interval_words:
-                word_label: str = str(word.get("speaker") or "UNKNOWN")
-                if current_label is None: current_label = word_label; current_words = [word]; continue
-                gap_seconds: float = float(word["start"]) - float(current_words[-1]["end"])
-                if word_label == current_label and gap_seconds <= speaker_gap_threshold: current_words.append(word)
-                else: # flush previous run as an utterance
-                    text: str = ""
-                    for word_entry in current_words: text = _merge_text(text, str(word_entry["word"]))
-                    utterances.append(Utterance(start=float(current_words[0]["start"]), end=float(current_words[-1]["end"]), speaker=str(current_label), text=text.strip()))
-                    current_label = word_label; current_words = [word]
-
-            if current_words: # flush anything remaining
-                text: str = ""
-                for word_entry in current_words: text = _merge_text(text, str(word_entry["word"]))
-                utterances.append(Utterance(start=float(current_words[0]["start"]), end=float(current_words[-1]["end"]), speaker=str(current_label), text=text.strip()))
-
-    utterances.sort(key=lambda utterance: (utterance.start, utterance.end))
+    # second pass; merge adjacent utterances for the same speaker when close in time
     merged_utterances: List[Utterance] = []
     for utterance in utterances:
         if not merged_utterances: merged_utterances.append(utterance); continue
+
         last_utterance = merged_utterances[-1]
-        gap = max(0.0, float(utterance.start) - float(last_utterance.end))
-        if utterance.speaker == last_utterance.speaker and gap <= speaker_gap_threshold:
+        gap_seconds = max(0.0, float(utterance.start) - float(last_utterance.end))
+
+        if utterance.speaker == last_utterance.speaker and gap_seconds <= speaker_gap_threshold:
+            # same speaker and short gap. extend the previous utterance boundaries and text
             merged_utterances[-1] = Utterance(
                 start=last_utterance.start,
                 end=max(last_utterance.end, utterance.end),
                 speaker=last_utterance.speaker,
-                text=_merge_text(last_utterance.text, utterance.text),
-            )
-        else: merged_utterances.append(utterance)
+                text=_merge_text(last_utterance.text, utterance.text))
+        else: merged_utterances.append(utterance) # different speaker or long silence -- start a new utterance
 
     return merged_utterances
 
@@ -461,6 +515,7 @@ def transcribe_with_diarization(audio_path: Path, model: FasterWhisperPipeline, 
 
         print("post processing")
         alignment_result = whisperx.assign_word_speakers(diarization_result, alignment_result)
+        _fill_missing_word_speakers(alignment_result, diarization_result)
         utterances = postprocess_segments(alignment_result, diarization_result)
 
     except Exception as e: raise TranscriptionError(f"transcription with diarization failed: {e}") from e
@@ -468,21 +523,16 @@ def transcribe_with_diarization(audio_path: Path, model: FasterWhisperPipeline, 
     end_time: float = time.perf_counter()
     if output_format == "json": file_body = json.dumps([
             {"start": utterance.start, "end": utterance.end, "speaker": utterance.speaker, "text": utterance.text}
-            for utterance in utterances
-        ], ensure_ascii=False, indent=2)
+            for utterance in utterances], ensure_ascii=False, indent=2)
     else:
         formatted_lines = [
         f"[{format_timestamp(utterance_line.start)}] {utterance_line.speaker}: {utterance_line.text}"
-        for utterance_line in utterances
-        ]
+        for utterance_line in utterances]
         file_body = "\n".join(formatted_lines)
 
     output_path.write_text(file_body, encoding="utf-8")
     print(f"saved to: {output_path}")
     print(f"\ntook {format_duration(end_time-start_time)}")
-
-
-
 
 def main() -> int:
     # total_start_time: float = time.perf_counter()
