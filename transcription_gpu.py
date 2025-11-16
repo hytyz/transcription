@@ -7,23 +7,32 @@ import whisperx; import torch
 # from pydub import AudioSegment
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Any, Iterator
+from typing import Optional, List, Dict, Any, Iterator, Iterable, Tuple, Callable, Mapping, cast
 from lightning.pytorch.utilities import disable_possible_user_warnings
 
 @dataclass
 class Segment:
+    """
+    output of transcription and alignment, no speaker
+    """
     start: float
     end: float
     text: str
 
 @dataclass
 class SpeakerSegment:
+    """
+    output of diarization, no text
+    """
     start: float
     end: float
     label: str
 
 @dataclass
 class Utterance:
+    """
+    text from segment + label from SpeakerSegment with adjusted intervals from both
+    """
     start: float
     end: float
     speaker: str
@@ -166,67 +175,45 @@ def run_diarization(audio_path: Path, hf_token: str):
         diarization_result = diarization_pipeline(str(audio_path))
     return diarization_result
 
+# these two are used in normalize_diarization()
+# diarization tuple yielded by itertracks() from pyannote # https://pyannote.github.io/pyannote-core/reference.html#pyannote.core.Annotation.itertracks
+Track = Tuple[Any, Any, Any] # (time_span, track_id, speaker_label) 
+# diarization tuple yielded by iterrows() from pandas # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.iterrows.html
+Row = Tuple[Any, Mapping[str, Any]] # (index, row_data)
+
 def postprocess_segments(alignment_result: WordDict, diarization_result, speaker_gap_threshold: float = 0.8) -> List[WordDict]:
     """
-    combines aligned transcription segments with diarization output into coherent utterances, labeled with speakers. core logic
+    combines aligned transcription segments with diarization output into coherent speaker labeled utterances
 
-    alignment_result is a dictionary returned by align_transcription()
-    diarization_result is speaker diarization output returned by run_diarization()
-    speaker_gap_threshold is the max gap in seconds between two segments from the same speaker for them to be merged into a single utterance
-        for example, if segments for the same speaker are separated by 0.5 seconds, they are merged; if separated by 1.2 seconds, they become separate utterances
-    
-    returns a list of utterances; each utterance is a dictionary with:
-            1. start time in seconds, as a float
-            2. end time in seconds, as a float
-            3. string label for the speaker
-            4. full merged text spoken by that speaker in the given interval
+    params:
+    alignment_result is a dictionary from align_transcription() with a "segments" list
+    diarization_result is the diarization output
+    speaker_gap_threshold is the maximum gap in seconds between two segments from the same speaker for them to be merged into a single utterance
 
     steps:
-    1. clean aligned segments:
-        extract asegments from alignment_result
-        for each segment
-            strip whitespace from the text;
-            skip segments where the text is empty after stripping;
-            normalise start and end timestamps;
-            ensure end > start before keeping the segment.
-        the result is cleaned_segments
+        1. cleans aligned segments:
+            reads alignment_result and strip
+            builds Segment(start, end, text) objects and sorts chronologically
+        2. normalises diarization:
+            converts diarization_result into a list of SpeakerSegment(start, end, label) using itertracks, iterrows, or a "segments" list
+            sorts speaker_segments chronologically
+        3. assigns speakers:
+            if speaker_segments is empty, every interval is labeled UNKNOWN
+            otherwise
+                assigns the speaker label with maximum temporal overlap
+                falls back to the speaker whose span contains the midpoint
+                falls back to UNKNOWN
+        4. labels segments:
+            for each cleaned Segment creates an Utterance(start, end, speaker, text)
+            sorts labeled_segments chronologically
+        5. merges into utterances:
+            iterates over labeled_segments chronologically
+            if the current segment has the same speaker as the last utterance and the gap is <= given speaker_gap_threshold, merges:
+                updates the text of the last utterance
+                extends the end of the last_utterance to the current segment end
+            otherwise starts a new Utterance
 
-    2. normalise diarization segments:
-        attempt to interpret diarization_result using different possible apis:
-            preferred: itertracks(yield_label=true) for pyannote 2.x pipelines;
-            fallback: iterrows() if diarization_result is a dataframe-like object;
-            fallback: a plain dict with a "segments" key.
-        in each case, produce a list of speaker_segments, where each entry is {"start": float, "end": float, "label": string}
-        sort speaker_segments by (start, end)
-
-    3. speaker assignment for each transcription segment:
-        define helper function speaker_for_interval(start_time, end_time).
-        for each aligned transcription segment:
-            compute time overlap with each speaker segment;
-            choose the speaker label with maximum overlap duration;
-            if no overlap is found:
-                use the midpoint of the transcription segment and find the speaker segment that covers that midpoint
-                if still not found, return UNKNOWN
-
-    4. label each transcription segment:
-        for every cleaned segment, call speaker_for_interval() to determine its speaker
-        build labeled_segments so that each has "start", "end", "speaker", "text"
-
-    5. merge adjacent segments into utterances:
-        iterate over labeled_segments in chronological order
-        maintain a list of utterances
-        for each segment:
-            if utterances is not empty and
-                the current segment has the same speaker as the last utterance, and
-                the time gap between the end of the previous utterance and the start of the current segment is <= to the gap threshold passed in params,
-            then:
-                merge the current segment into the last utterance
-                optionally insert a space between texts, according to punctuation rules
-                update the end of the previous utterance to the end of the current segment
-            otherwise start a new utterance with this segment
-        the spacing logic before concatenation avoids double spaces, missing spaces between words, and extra spaces before punctuation
-
-    returns a list of coherent and readable utterances
+    returns a list of dictionaries, each with keys "start", "end", "speaker", "text", representing speaker labeled utterances in chronological order
     """
     # extract aligned segments from the alighnment result
     aligned_segments: List[WordDict] = alignment_result.get("segments") or []
@@ -245,28 +232,54 @@ def postprocess_segments(alignment_result: WordDict, diarization_result, speaker
 
     def normalize_diarization(diarization_result) -> List[SpeakerSegment]:
         """
-        normalise diarization_result into a list of dictionaries like {"start": float, "end": float, "label": str}
+        normalise diarization_result into a list of SpeakerSegments (like {start: float, end: float, label: str})
         """
         speaker_segments: List[SpeakerSegment] = []
-
         if diarization_result is None: return speaker_segments
 
         # primary path; pyannote style object with itertracks
-        if hasattr(diarization_result, "itertracks"):
-            for time_span, _, speaker_label in diarization_result.itertracks(yield_label=True):
-                speaker_segments.append(SpeakerSegment(start=float(time_span.start), end=float(time_span.end), label=str(speaker_label),))
-        # fallback: dataframe like object exposing iterrows
-        elif hasattr(diarization_result, "iterrows"):
-            for _, row in diarization_result.iterrows():
-                speaker_segments.append(SpeakerSegment(start=float(row["start"]), end=float(row["end"]), label=str(row.get("speaker", row.get("label", "UNKNOWN"))),))
-        # fallback: plain dictionary with a "segments" list
-        elif isinstance(diarization_result, dict) and "segments" in diarization_result:
+        iterator_over_tracks: Optional[Callable[..., Iterable[Track]]] = getattr(diarization_result, "itertracks", None)
+        if callable(iterator_over_tracks):
+            tracks: Iterable[Track] = iterator_over_tracks(yield_label=True)
+            for time_span, _, speaker_label in tracks:
+                speaker_segments.append(
+                    SpeakerSegment(
+                        start=float(time_span.start),
+                        end=float(time_span.end),
+                        label=str(speaker_label),
+                    )
+                )
+            speaker_segments.sort(key=lambda span: (span.start, span.end))
+            return speaker_segments
+    
+        # fallback; dataframe like object exposing iterrows
+        iterator_over_rows: Optional[Callable[..., Iterable[Row]]] = getattr(diarization_result, "iterrows", None)
+        if callable(iterator_over_rows):
+            rows: Iterable[Row] = iterator_over_rows()
+            for _, row in rows:
+                speaker_segments.append(
+                    SpeakerSegment(
+                        start=float(row["start"]),
+                        end=float(row["end"]),
+                        label=str(row.get("speaker", row.get("label", "UNKNOWN"))),
+                    )
+                )
+            speaker_segments.sort(key=lambda span: (span.start, span.end))
+            return speaker_segments
+    
+        # fallback; plain dictionary with a "segments" list
+        if isinstance(diarization_result, dict) and "segments" in diarization_result:
             for row in diarization_result["segments"]:
-                speaker_segments.append(SpeakerSegment(start=float(row.get("start", 0.0)), end=float(row.get("end", 0.0)), label=str(row.get("speaker") or row.get("label") or "UNKNOWN"),))
+                speaker_segments.append(
+                    SpeakerSegment(
+                        start=float(row.get("start", 0.0)),
+                        end=float(row.get("end", 0.0)),
+                        label=str(row.get("speaker") or row.get("label") or "UNKNOWN"),
+                    )
+                )
+            speaker_segments.sort(key=lambda span: (span.start, span.end))
+            return speaker_segments
         else: return []
-
-        speaker_segments.sort(key=lambda span: (span.start, span.end))
-        return speaker_segments
 
     speaker_segments: List[SpeakerSegment] = normalize_diarization(diarization_result)
 
@@ -353,29 +366,6 @@ def postprocess_segments(alignment_result: WordDict, diarization_result, speaker
             last_utterance.text = merge_text(last_utterance.text, segment.text or "")
             last_utterance.end = segment.end
         else: utterances.append(Utterance(start=segment.start, end=segment.end, speaker=segment.speaker, text=segment.text)) # for better scoping
-
-        # i'm not sure about this new implementation above so i want to keep the old one in case the above is proper broken
-        # if utterances and utterances[-1]["speaker"] == segment["speaker"] and (segment["start"] - utterances[-1]["end"]) <= speaker_gap_threshold:
-        #     # current segment is close enough and has the same speaker as the last utterance => merge text and extend the end timestamp
-        #     last_utterance: WordDict = utterances[-1]
-
-        #     # if segment["text"] and segment["text"][0] in ".,!?;:%)]}": last_utterance["text"] += segment["text"]
-        #     # else:
-        #     #     if last_utterance["text"] and not last_utterance["text"].endswith(" "): last_utterance["text"] += " "
-        #     #     last_utterance["text"] += segment["text"]
-        #     # last_utterance["end"] = segment["end"]
-
-        #     # decide whether to insert a space before appending the next segment:
-        #     #   if the existing text already ends with whitespace or punctuation do not add a space
-        #     #   if the new segment starts with punctuation do not add a space
-        #     #   otherwise add a space
-        #     next_segment = segment["text"] or ""
-        #     if last_utterance["text"] and not last_utterance["text"].endswith((" ", "\n", "—", "-", "(", "[", "{", "“", "'")) and not (next_segment and next_segment[0] in ".,!?;:%)]}"):
-        #         last_utterance["text"] += " "
-        #     last_utterance["text"] += next_segment.lstrip()
-        #     last_utterance["end"] = segment["end"]
-            
-        # else: utterances.append(segment) # start a new utterance entry if no existing utterance to merge into or speaker/gap conditions not met
 
     return [{"start": utterance.start, "end": utterance.end, "speaker": utterance.speaker, "text": utterance.text} for utterance in utterances]
 
