@@ -2,7 +2,7 @@ from numpy import ndarray
 from typing import Callable, Optional
 from pandas import DataFrame
 from utils_types import TranscriptionError, TranscriptionResult, AlignmentResult
-from utils_functions import STATES, load_audio, transcribe_audio, align_transcript_segments, run_diarization_pipeline, postprocess_segments
+from utils_pipeline import STATES, load_audio, transcribe_audio, align_transcript_segments, run_diarization_pipeline, postprocess_segments
 
 CURRENT_STATE: str = ""
 
