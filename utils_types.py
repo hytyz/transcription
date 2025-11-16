@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, List, Mapping, TypedDict, Dict, NamedTuple
+from typing import List, TypedDict, Dict
 
 #internal data structures
 
@@ -83,4 +83,3 @@ class WordEntry(TypedDict):
     end: float
     word: str
     speaker: str | None
-

@@ -4,13 +4,13 @@ from whisperx.asr import FasterWhisperPipeline
 from whisperx.diarize import DiarizationPipeline
 from utils_types import TranscriptionError, AlignMetadata
 
+# determines the n of speakers and how often segments are merged or split across speakers
+DIARIZATION_CLUSTER_THRESHOLD: float = 0.6 # try lowering to reduce overmerging
 _DEVICE: str = "cuda" # required for diarization on gpu
 _ALIGN_MODEL: Optional[torch.nn.Module] = None # cached whisperx alignment model instance
 _ALIGN_METADATA: Optional[AlignMetadata] = None # cached metadata of the alignment model
 _DIARIZATION_PIPELINE: Optional[DiarizationPipeline] = None # cached diarization pipeline instance
 _WHISPER_MODEL: Optional[FasterWhisperPipeline] = None # cached whisperx transcription model instance
-# determines the n of speakers and how often segments are merged or split across speakers
-DIARIZATION_CLUSTER_THRESHOLD: float = 0.6 # try lowering to reduce overmerging
 
 # for loading the pyannote diarization model
 _token: Optional[str] = os.environ.get("HF_TOKEN")
@@ -28,7 +28,7 @@ def get_whisper_model() -> FasterWhisperPipeline:
     global _WHISPER_MODEL
     if _WHISPER_MODEL is not None: return _WHISPER_MODEL
     model_name: str = "large"
-    
+
     try: model: FasterWhisperPipeline = whisperx.load_model(model_name, _DEVICE, compute_type="float16")
     except ValueError as e:
         message = str(e).lower()
@@ -49,7 +49,6 @@ def get_align_model() -> tuple[torch.nn.Module, AlignMetadata]:
     if _ALIGN_MODEL is None or _ALIGN_METADATA is None: 
         _ALIGN_MODEL, _ALIGN_METADATA = whisperx.load_align_model(language_code="en", device=_DEVICE)
     return cast(torch.nn.Module, _ALIGN_MODEL), cast(AlignMetadata, _ALIGN_METADATA)
-
 
 def get_diarization_pipeline() -> DiarizationPipeline:
     """

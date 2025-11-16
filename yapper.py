@@ -3,10 +3,9 @@ from requests import Response
 from typing import Dict
 from transcription import generate_diarized_transcript, get_current_state
 
-# i'm not sure whether this file is needed:
-#   unless anything else gets added to it, it should be merged with transcription.py or vice versa
-#   or this should be handled in the api 
-#   either way it was probably helpful to try to figure out how this is going to work
+# i'm very sure this file is not needed at all
+# this should be handled in the api
+# but it was kinda fun to try to figure out how this could interact with the api so whatever. blueprint i suppose
 
 def download_audio(base_url: str, jobid: str) -> bytes:
     """
