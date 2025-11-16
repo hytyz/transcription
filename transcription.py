@@ -6,17 +6,10 @@ from utils_functions import STATES, load_audio, transcribe_audio, align_transcri
 
 CURRENT_STATE: str = ""
 
-def get_current_state() -> str:
-    """
-    returns the current pipeline state label for the most recent job
-    """
-    return CURRENT_STATE
+def get_current_state() -> str: return CURRENT_STATE
 
 def generate_diarized_transcript(audio_bytes: bytes, on_state_change: Optional[Callable[[str], None]] = None) -> bytes:
-    """
-    runs the full transcription and diarization pipeline on an in-memory audio blob
-    returns the formatted transcript as utf8 encoded bytes
-    """
+    """runs transcription, alignment, diarization, and formatting for a single audio blob"""
     def _set_state(state_index: int) -> None:
         global CURRENT_STATE
         CURRENT_STATE = STATES[state_index]

@@ -33,31 +33,21 @@ def load_audio(data:bytes) -> ndarray:
     return audio.astype("float32") / 32768.0
 
 def transcribe_audio(audio: ndarray) -> TranscriptionResult:
-    """
-    performs transcription on the given audio using a preloaded whisperx model
-    uses torch.inference_mode() to disable gradient tracking for speed and lower memory usage
-
-    returns a dictionary with the raw transcription output: segments is a list of segments, each including
-    start and end timestamps, and text string
-    """
+    """run transcription on audio and return raw segments via cached whisperx model"""
     whisper_model: FasterWhisperPipeline = get_whisper_model()
     with torch.inference_mode(): result: TranscriptionResult = whisper_model.transcribe(audio, language="en", task="transcribe")
     return result
 
 def align_transcript_segments(audio: ndarray, segments: List[SegmentDict]) -> AlignmentResult:
-    """
-    aligns raw whisperx segments with the audio via the cached whisperx alignment model
-    takes the segment list from a TranscriptionResult and returns an AlignmentResult 
-        its "segments" list preserves the original segment-level fields and adds word-level timing information in a "words" field
-    """
+    """aligns raw whisperx segments to audio via the cached alignment model"""
     align_model, align_metadata = get_align_model()
     alignment_result: AlignmentResult = whisperx.align(segments, align_model, align_metadata, audio, DEVICE)
     return alignment_result
 
 def run_diarization_pipeline(audio: ndarray) -> DataFrame:
     """
-    runs speaker diarization on an audio file using the cached pipeline through whisperx
-    returns a pandas DataFrame describing contiguous time spans for each detected speaker
+    runs speaker diarization on audio file the cached diarization pipeline
+    returns a pandas DataFrame of time spans for each detected speaker
     """
     diarization_pipeline = get_diarization_pipeline()
     diarization_result: DataFrame = diarization_pipeline(audio, min_speakers=2, max_speakers=5)
@@ -67,18 +57,8 @@ def postprocess_segments(diarization_result: DataFrame, alignment_result: Alignm
     """
     merges word level speakers and timings into final utterances and formats the transcript
 
-    params:
-    diarization_result is a pandas dataframe
-    alignment_result is the raw alignment output from whisperx.align with segments and words
-
-    steps:
-        1. runs whisperx.assign_word_speakers and _fill_missing_word_speakers to attach a speaker label to as many words as possible
-        2. flattens all well-formed word entries into a chronological list of {start, end, word, speaker}
-        3. iterates over word list and builds Utterance runs by grouping consecutive words with the same speaker
-        4. merges adjacent Utterance objects for the same speaker when the silence between them is <= _SPEAKER_GAP_THRESHOLD
-        5. formats the merged utterances as "[hh:mm:ss] speaker_xx: text" lines
-
-    returns the final transcript as utf8 encoded bytes
+    uses diarization to fill missing word speakers, groups consecutive words by speaker and time gaps,
+    merges nearby utterances for the same speaker, and returns lines like "[hh:mm:ss] SPEAKER: text" as UTF-8 bytes
     """
     alignment_result = whisperx.assign_word_speakers(diarization_result, alignment_result)
     _fill_missing_word_speakers(alignment_result, diarization_result)
@@ -215,9 +195,6 @@ def postprocess_segments(diarization_result: DataFrame, alignment_result: Alignm
     return file_body.encode("utf-8")
 
 def _format_timestamp(total_seconds: float) -> str:
-    """
-    converts a timestamp in seconds to hh:mm:ss (like 3661.3 to 01:01:01)
-    """
     hours: int = int(total_seconds // 3600)
     minutes: int = int((total_seconds % 3600) // 60)
     seconds: int = int(total_seconds % 60)
@@ -225,15 +202,10 @@ def _format_timestamp(total_seconds: float) -> str:
 
 def _normalise_diarisation_turns(diarization_result: DataFrame) -> List[SpeakerSegment]:
     """
-    normalises diarization outputs into a sorted list of speaker turns
+    normalises diarization rows into cleaned SpeakerSegment turns
 
-    steps:
-        1. extracts all turns as diarization rows as (start, end, label)
-        2. drops entries with missing or infinite times and entries with non-positive duration
-        3. resets negative start times to 0.0 to avoid negative intervals
-        4. sorts the cleaned turns by (start, end)
-
-    returns a normalised list of SpeakerSegment
+    drops rows with invalid times, sets negative times to 0.0, enforces positive duration,
+    and returns segments sorted by (start, end).
     """
     segments: List[SpeakerSegment] = []
     if not isinstance(diarization_result, DataFrame): raise TranscriptionError("diarization_result must be a pandas DataFrame")
@@ -279,7 +251,7 @@ def _build_turn_index(turns: List[SpeakerSegment]) -> Dict[int, List[SpeakerSegm
 
 def _pick_speaker_for_interval(interval_start: float, interval_end: float, turn_index: Dict[int, List[SpeakerSegment]]) -> Optional[str]:
     """
-    picks a speaker label for [interval_start, interval_end) from diarization turns using a uniform time grid index
+    picks a speaker label for [interval_start, interval_end) from diarization turns using a time grid index
 
     computes overlap only against turns that fall into the cells that overlap the interval
     returns the label of the turn with the largest overlap, or None if no turns overlap
@@ -316,15 +288,10 @@ def _pick_speaker_for_interval(interval_start: float, interval_end: float, turn_
 
 def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_result: DataFrame) -> None:
     """
-    gives words in alignment_result speaker labels
+    fills missing word "speaker" fields in alignment_result using diarization turns
 
-    steps:
-        1. normalises diarization_result into a sorted list of speaker turns via _normalise_diarization_turns
-        2. sets each segment and its words in order
-        3. for words missing a "speaker" field:
-            picks a label from overlapping diarization turns when available
-            otherwise falls back to the previous word label in the same segment
-        4. leaves words that still cannot be labelled unchanged
+    normalises diarization into SpeakerSegment turns, uses the time grid index to pick labels for each word interval, 
+    and falls back to the previous word label in the same segment when needed.
 
     mutates alignment_result and doesn't return anything
     """

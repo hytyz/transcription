@@ -8,36 +8,21 @@ from transcription import generate_diarized_transcript, get_current_state
 # but it was kinda fun to try to figure out how this could interact with the api so whatever. blueprint i suppose
 
 def download_audio(base_url: str, jobid: str) -> bytes:
-    """
-    downloads an audio file from the gpu api for the given job id
-    constructs a url using base_url and jobid and performs a get request
-    returns the raw response body as bytes
-    """
+    """downloads raw audio bytes for a job id from api"""
     resp: Response = requests.get(f"{base_url}/queue/{jobid}")  # get request to queue endpoint
     if resp.status_code == 404: raise RuntimeError(f"audio file for job '{jobid}' not found")
     resp.raise_for_status()
     return resp.content
 
 def upload_transcription(base_url: str, jobid: str, text_bytes: bytes) -> None:
-    """
-    uploads a text transcription to the transcriptions api for the given job id
-
-    sends a multipart/form-data post request with the transcription file payload and the job id
-    """
+    """uploads a text transcription for a job id to api"""
     files: Dict[str, tuple[str, bytes, str]] = {"file": ("transcription.txt", text_bytes, "text/plain")} 
     data: Dict[str, str] = {"jobid": jobid}
     resp: Response = requests.post(f"{base_url}/transcriptions", files=files, data=data) # post request to upload transcription
     resp.raise_for_status()
 
 def process_job(base_url: str, jobid: str) -> None:
-    """
-    run the full transcription pipeline for a single job?
-
-    downloads the audio from the api, 
-    runs the transcription and diarization pipeline,
-    reports state changes to the status endpoint,
-    uploads the final transcription back to the api
-    """
+    """runs the full transcription pipeline for a single job?"""
     audio_bytes: bytes = download_audio(base_url=base_url, jobid=jobid)
     def _report_state(state: str) -> None: 
         try: upload_status(base_url=base_url, jobid=jobid, state=state) 
@@ -47,16 +32,9 @@ def process_job(base_url: str, jobid: str) -> None:
     upload_transcription(base_url=base_url, jobid=jobid, text_bytes=text_bytes)
 
 def upload_status(base_url: str, jobid: str, state: str) -> None:
-    """
-    uploads the current pipeline state to the endpoint
-    sends a post request to /status containing the job id and the current state label
-    """
+    """posts the current pipeline state for a job id to /status"""
     data: Dict[str, str] = {"jobid": jobid, "state": state}
     resp: Response = requests.post(f"{base_url}/status", json=data)
     resp.raise_for_status()
 
-def get_transcription_state() -> str:
-    """
-    returns the current transcription pipeline state from the transcription module
-    """
-    return get_current_state()
+def get_transcription_state() -> str: return get_current_state()
