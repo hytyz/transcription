@@ -1,3 +1,4 @@
+
 import os; import sys; import time
 import logging; import warnings; import shutil
 import contextlib; import argparse
@@ -5,8 +6,28 @@ import subprocess; import json
 import whisperx; import torch
 # from pydub import AudioSegment
 from pathlib import Path
+from dataclasses import dataclass
 from typing import Optional, List, Dict, Any, Iterator
 from lightning.pytorch.utilities import disable_possible_user_warnings
+
+@dataclass
+class Segment:
+    start: float
+    end: float
+    text: str
+
+@dataclass
+class SpeakerSegment:
+    start: float
+    end: float
+    label: str
+
+@dataclass
+class Utterance:
+    start: float
+    end: float
+    speaker: str
+    text: str
 
 WordDict = Dict[str, Any] # type alias to hold arbitrary metadata for utterances
 DEVICE: str = "cuda"
@@ -211,109 +232,152 @@ def postprocess_segments(alignment_result: WordDict, diarization_result, speaker
     aligned_segments: List[WordDict] = alignment_result.get("segments") or []
 
     # clean segments
-    cleaned_segments: List[WordDict] = []
+    cleaned_segments: List[Segment] = []
     for segment in aligned_segments:
         text: str = (segment.get("text") or "").strip()
         if not text: continue # skip if the segment is all whitespace
         start_time: float = float(segment.get("start", 0.0))
         end_time: float = float(segment.get("end", start_time))
         # only keep segments that have positive duration
-        if end_time > start_time: cleaned_segments.append({"start": start_time, "end": end_time, "text": text})
+        if end_time > start_time: cleaned_segments.append(Segment(start=start_time, end=end_time, text=text))
     if not cleaned_segments: return [] # if there are no valid segments after cleaning
+    cleaned_segments.sort(key=lambda segment: (segment.start, segment.end))
 
-    # convert the result of diarization into a list of speaker segments
-    speaker_segments: List[WordDict] = []
-    try:
-        # preferred api is pyannote's itertracks
-        for time_span, _, speaker_label in diarization_result.itertracks(yield_label=True):
-            speaker_segments.append({"start": float(time_span.start), "end": float(time_span.end), "label": str(speaker_label)})
-    except Exception:
-        # fallback if diarization_result behaves like a dataframe
-        if hasattr(diarization_result, "iterrows"):
+    def normalize_diarization(diarization_result) -> List[SpeakerSegment]:
+        """
+        normalise diarization_result into a list of dictionaries like {"start": float, "end": float, "label": str}
+        """
+        speaker_segments: List[SpeakerSegment] = []
+
+        if diarization_result is None: return speaker_segments
+
+        # primary path; pyannote style object with itertracks
+        if hasattr(diarization_result, "itertracks"):
+            for time_span, _, speaker_label in diarization_result.itertracks(yield_label=True):
+                speaker_segments.append(SpeakerSegment(start=float(time_span.start), end=float(time_span.end), label=str(speaker_label),))
+        # fallback: dataframe like object exposing iterrows
+        elif hasattr(diarization_result, "iterrows"):
             for _, row in diarization_result.iterrows():
-                speaker_segments.append({
-                    "start": float(row["start"]),
-                    "end": float(row["end"]),
-                    "label": str(row.get("speaker", row.get("label", "UNKNOWN")))
-                })
-        # fallback, dictionary with a segments list
+                speaker_segments.append(SpeakerSegment(start=float(row["start"]), end=float(row["end"]), label=str(row.get("speaker", row.get("label", "UNKNOWN"))),))
+        # fallback: plain dictionary with a "segments" list
         elif isinstance(diarization_result, dict) and "segments" in diarization_result:
             for row in diarization_result["segments"]:
-                speaker_segments.append({
-                    "start": float(row.get("start", 0.0)),
-                    "end": float(row.get("end", 0.0)),
-                    "label": str(row.get("speaker") or row.get("label") or "UNKNOWN")
-                })
-    speaker_segments.sort(key=lambda span: (span["start"], span["end"])) # sort chronologically 
+                speaker_segments.append(SpeakerSegment(start=float(row.get("start", 0.0)), end=float(row.get("end", 0.0)), label=str(row.get("speaker") or row.get("label") or "UNKNOWN"),))
+        else: return []
 
-    def speaker_for_interval(start_time: float, end_time: float) -> str:
-        """
-        determines the most likely speaker label given a transcription interval
+        speaker_segments.sort(key=lambda span: (span.start, span.end))
+        return speaker_segments
 
-        steps:
-        1. max overlap 
-            iterate through all segments
-            for each segment compute the overlap in seconds
-            track the label with the maximum overlap
-            if a label achieves any non-zero overlap, return that label
+    speaker_segments: List[SpeakerSegment] = normalize_diarization(diarization_result)
 
-        2. midpoint
-            if no overlapping speaker segment is found:
-                compute the midpoint of the segment
-                find the speaker segment that contains this midpoint
-                if found, return that label
+    if not speaker_segments:
+        # if diarization produced nothing usable always return unknown
+        def speaker_for_interval(start_time: float, end_time: float) -> str: return "UNKNOWN"
+    else:
+        # segment_index is a faux pointer that points to the first diarization segment that could possibly overlap the current transcription segment
+        segment_index: int = 0
+        def speaker_for_interval(start_time: float, end_time: float) -> str:
+            """
+            determines the most likely speaker label for a transcription interval
 
-        3. fallback
-            if no match is found at all return UNKNOWN
-        """
-        best_label: Optional[str]
-        max_overlap_seconds: float
-        best_label, max_overlap_seconds = None, 0.0
-        for span in speaker_segments:  # TODO FIX THIS IS O(N*M)
-            if span["end"] <= start_time: continue # skip segments that end before the given interval
-            if span["start"] >= end_time: break # once the start of the span is after the given interval, no further overlaps are possible
-            overlap_seconds: float = max(0.0, min(end_time, span["end"]) - max(start_time, span["start"]))
-            if overlap_seconds > max_overlap_seconds: max_overlap_seconds, best_label = overlap_seconds, span["label"]
-        if best_label is not None: return best_label
-        # fallback to midpoint
-        midpoint_second: float = 0.5 * (start_time + end_time) 
-        for span in speaker_segments:
-            if span["start"] <= midpoint_second < span["end"]: return span["label"]
-            if span["start"] > midpoint_second: break
-        return "UNKNOWN" # fallback to unkown
+            steps:
+            1. overlap based assignment:
+                advance segment_index to skip any diarization spans that end at or before start_time
+                from segment_index onward, compute overlap with each span whose start is before end_time
+                track the label with the max overlap duration; return that label if any positive overlap is found
+            2. if no overlap:
+                compute the midpoint of the interval
+                from segment_index onward, find the first diarization span that contains this midpoint; return that label if span is found
+            3. otherwise return "UNKNOWN"
+            """
+            nonlocal segment_index
+            n_of_segments:int = len(speaker_segments)
+            # after this loop speaker_segments[segment_index] is the earliest span that could overlap [start_time, end_time)
+            while segment_index < n_of_segments and speaker_segments[segment_index].end <= start_time: segment_index += 1
 
+            best_label: Optional[str] = None
+            max_overlap_seconds: float = 0.0
+
+            # scan onward from segment_index to find overlapping spans and get the one with maximum overlap
+            i:int = segment_index
+            while i < n_of_segments:
+                span = speaker_segments[i]
+                if span.start >= end_time: break # once the start of the span is at or after the end time no further overlaps are possible
+                overlap_seconds: float = max(0.0, min(end_time, span.end) - max(start_time, span.start),)
+                if overlap_seconds > max_overlap_seconds: max_overlap_seconds = overlap_seconds; best_label = span.label # update the best label if computed overlap is strictly larger than any previous
+                i += 1
+
+            if best_label is not None: return best_label
+
+            # fallback if no overlap -- use the midpoint of the interval to look for a containing span
+            midpoint_second: float = 0.5 * (start_time + end_time)
+            i = segment_index
+            while i < n_of_segments:
+                span = speaker_segments[i]
+                if span.start <= midpoint_second < span.end: return span.label # if the midpoint lies within this span use its label
+                if span.start > midpoint_second: break # once the start of the span is after the midpoint no later span can contain it
+                i += 1
+
+            return "UNKNOWN"
+        
     # label each segment with a speaker
-    labeled_segments: List[WordDict] = []
+    labeled_segments: List[Utterance] = []
     for segment in cleaned_segments:
-        speaker_label: str = speaker_for_interval(segment["start"], segment["end"])
-        labeled_segments.append({"start": segment["start"], "end": segment["end"], "speaker": speaker_label, "text": segment["text"]})
+        speaker_label: str = speaker_for_interval(segment.start, segment.end)
+        labeled_segments.append(Utterance(start=segment.start, end=segment.end, speaker=speaker_label, text=segment.text,))
+    labeled_segments.sort(key=lambda segment: (segment.start, segment.end))
+
+    def merge_text(previous_text: str, next_text: str) -> str:
+        """
+        merges two text fragments into a single string; avoids double spaces, missing spaces between words, and spaces before punctuation
+        
+        if the previous text ends with whitespace, dash, or an opening punctuation do not add a space
+        if the new segment starts with closing or separating punctuation do not add a space
+        otherwise add a space
+        """
+        if not next_text: return previous_text # nothing to merge
+        if not previous_text: return (next_text or "").lstrip() # the merged result is just the new segment text
+
+        next_text = next_text.lstrip()
+        starts_with_punctuation = bool(next_text) and next_text[0] in ".,!?;:%)]}"
+        ends_with_something_to_follow = previous_text.endswith((" ", "\n", "—", "-", "(", "[", "{", "“", "'")) # i really don't know what to name this variable
+        if not starts_with_punctuation and not ends_with_something_to_follow: return previous_text + " " + next_text
+
+        return previous_text + next_text
 
     # merge consecutive segments from the same speaker into longer utterances
-    utterances: List[WordDict] = []
+    utterances: List[Utterance] = []
     for segment in labeled_segments:
-        if utterances and utterances[-1]["speaker"] == segment["speaker"] and (segment["start"] - utterances[-1]["end"]) <= speaker_gap_threshold:
-            # current segment is close enough and has the same speaker as the last utterance => merge text and extend the end timestamp
-            last_utterance: WordDict = utterances[-1]
+        if (utterances and utterances[-1].speaker == segment.speaker and (segment.start - utterances[-1].end) <= speaker_gap_threshold):
+            last_utterance: Utterance = utterances[-1]
+            last_utterance.text = merge_text(last_utterance.text, segment.text or "")
+            last_utterance.end = segment.end
+        else: utterances.append(Utterance(start=segment.start, end=segment.end, speaker=segment.speaker, text=segment.text)) # for better scoping
 
-            # if segment["text"] and segment["text"][0] in ".,!?;:%)]}": last_utterance["text"] += segment["text"]
-            # else:
-            #     if last_utterance["text"] and not last_utterance["text"].endswith(" "): last_utterance["text"] += " "
-            #     last_utterance["text"] += segment["text"]
-            # last_utterance["end"] = segment["end"]
+        # i'm not sure about this new implementation above so i want to keep the old one in case the above is proper broken
+        # if utterances and utterances[-1]["speaker"] == segment["speaker"] and (segment["start"] - utterances[-1]["end"]) <= speaker_gap_threshold:
+        #     # current segment is close enough and has the same speaker as the last utterance => merge text and extend the end timestamp
+        #     last_utterance: WordDict = utterances[-1]
 
-            # decide whether to insert a space before appending the next segment:
-            #   if the existing text already ends with whitespace or punctuation do not add a space
-            #   if the new segment starts with punctuation do not add a space
-            #   otherwise add a space
-            next_segment = segment["text"] or ""
-            if last_utterance["text"] and not last_utterance["text"].endswith((" ", "\n", "—", "-", "(", "[", "{", "“", "'")) and not (next_segment and next_segment[0] in ".,!?;:%)]}"):
-                last_utterance["text"] += " "
-            last_utterance["text"] += next_segment.lstrip()
-            last_utterance["end"] = segment["end"]
+        #     # if segment["text"] and segment["text"][0] in ".,!?;:%)]}": last_utterance["text"] += segment["text"]
+        #     # else:
+        #     #     if last_utterance["text"] and not last_utterance["text"].endswith(" "): last_utterance["text"] += " "
+        #     #     last_utterance["text"] += segment["text"]
+        #     # last_utterance["end"] = segment["end"]
+
+        #     # decide whether to insert a space before appending the next segment:
+        #     #   if the existing text already ends with whitespace or punctuation do not add a space
+        #     #   if the new segment starts with punctuation do not add a space
+        #     #   otherwise add a space
+        #     next_segment = segment["text"] or ""
+        #     if last_utterance["text"] and not last_utterance["text"].endswith((" ", "\n", "—", "-", "(", "[", "{", "“", "'")) and not (next_segment and next_segment[0] in ".,!?;:%)]}"):
+        #         last_utterance["text"] += " "
+        #     last_utterance["text"] += next_segment.lstrip()
+        #     last_utterance["end"] = segment["end"]
             
-        else: utterances.append(segment) # start a new utterance entry if no existing utterance to merge into or speaker/gap conditions not met
+        # else: utterances.append(segment) # start a new utterance entry if no existing utterance to merge into or speaker/gap conditions not met
 
-    return utterances
+    return [{"start": utterance.start, "end": utterance.end, "speaker": utterance.speaker, "text": utterance.text} for utterance in utterances]
 
 def transcribe_with_diarization(audio_path: Path, model, output_path: Path, output_format: str) -> None:
     """
@@ -384,15 +448,15 @@ def delete_wav(wav_path: Path):
         try: wav_path.unlink()
         except Exception as e: print(f"could not delete wav. {e}")
 
-if __name__ == "__main__": # for cmd
+if __name__ == "__main__":
     # total_start_time: float = time.perf_counter()
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file")
-    parser.add_argument("--model", default="medium") # can specify a different whisperx model
-    parser.add_argument("-v", "--verbose", action="store_true") # doesn't supress any logs for debugging
-    parser.add_argument("-k", "--keep-wav", action="store_true") # doesn't delete intermediate .wav
-    parser.add_argument('-o', '--overwrite', action='store_true') # overwrites any existing outputs
-    parser.add_argument('-f', '--out_format', choices=['txt','json'], default='txt') # deprecate? idk if i will actually ever need .json outputs
+    parser.add_argument("--model", default="medium")                                    # can specify a different whisperx model
+    parser.add_argument("-v", "--verbose", action="store_true")                         # doesn't supress any logs for debugging
+    parser.add_argument("-k", "--keep-wav", action="store_true")                        # doesn't delete intermediate .wav
+    parser.add_argument('-o', '--overwrite', action='store_true')                       # overwrites any existing outputs
+    parser.add_argument('-f', '--out_format', choices=['txt','json'], default='txt')    # deprecate? idk if i will actually ever need .json outputs
     args = parser.parse_args()
 
     VERBOSE = args.verbose
@@ -421,7 +485,7 @@ if __name__ == "__main__": # for cmd
         try:
             with suppress_everything(): whisper_model = whisperx.load_model(args.model, DEVICE, compute_type="float16")
             # torch.cuda.empty_cache()
-        except Exception as e: print(f"model '{args.model}' failed to load. {e}"); sys.exit(1) # if user requested a model that cannot be loaded
+        except Exception as e: print(f"model '{args.model}' failed to load. {e}"); sys.exit(1) # if user requested a model that couldnt be loaded
     else:
         try:
             with suppress_everything(): whisper_model = whisperx.load_model("medium", DEVICE, compute_type="float16")
