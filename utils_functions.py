@@ -1,13 +1,14 @@
 import math; import re; import shutil
-from typing import Optional, List, Any, Mapping, Iterable, Callable, Pattern, Tuple
+from typing import Optional, List, Mapping, Iterable, Callable, Pattern, Tuple
 import ffmpeg; import numpy; import torch
 import whisperx; from numpy import ndarray
 from utils_types import *
-from utils_models import _get_align_model, _get_diarization_pipeline, get_device, _load_whisper_model
+from utils_models import get_align_model, get_diarization_pipeline, get_device, load_whisper_model
 from whisperx.asr import FasterWhisperPipeline
 
 DEVICE: str = get_device()
 SPEAKER_GAP_THRESHOLD: float = 0.7 # maximum permitted silence when merging words and utterances for the same speaker
+STATES: Tuple[str, str, str, str, str] = ("received", "transcribing", "aligning", "diarizing", "post-processing")
 
 def _format_timestamp(total_seconds: float) -> str:
     """
@@ -46,7 +47,7 @@ def transcribe_audio(audio: ndarray) -> TranscriptionResult:
     returns a dictionary with the raw transcription output: segments is a list of segments, each including
     start and end timestamps, and text string
     """
-    whisper_model: FasterWhisperPipeline = _load_whisper_model("large")
+    whisper_model: FasterWhisperPipeline = load_whisper_model()
     with torch.inference_mode(): result: TranscriptionResult = whisper_model.transcribe(audio, language="en", task="transcribe")
     return result
 
@@ -56,7 +57,7 @@ def align_transcription(audio: ndarray, segments: List[SegmentDict]) -> Alignmen
     takes the segment list from a TranscriptionResult and returns an AlignmentResult 
         its "segments" list preserves the original segment-level fields and adds word-level timing information in a "words" field
     """
-    align_model, align_metadata = _get_align_model()
+    align_model, align_metadata = get_align_model()
     alignment_result: AlignmentResult = whisperx.align(segments, align_model, align_metadata, audio, DEVICE)
     return alignment_result
 
@@ -65,7 +66,7 @@ def run_diarization(audio: ndarray) -> DiarizationResult:
     runs speaker diarization on an audio file using the cached pipeline through whisperx
     returns an object describing contiguous time spans for each detected speaker
     """
-    diarization_pipeline = _get_diarization_pipeline(SPEAKER_GAP_THRESHOLD)
+    diarization_pipeline = get_diarization_pipeline()
     diarization_result: DiarizationResult = diarization_pipeline(audio, min_speakers=2, max_speakers=5)
     return diarization_result
 
@@ -95,32 +96,27 @@ def _normalize_diarization_turns(diarization_result: DiarizationResult) -> List[
             start_value = getattr(time_span, "start", None)
             end_value = getattr(time_span, "end", None)
             if start_value is None or end_value is None: continue
-            # print("tracks")
             speaker_segments.append(SpeakerSegment(start=float(start_value), end=float(end_value), label=str(speaker_label)))
 
     # fallback; dataframe like object exposing iterrows
     # THIS IS WHERE IT GOES TODO LOOK INTO
     elif callable(iterator_over_rows):
-        rows: Iterable[Tuple[Any, Mapping[str, Any]]] = iterator_over_rows()
-        for _, row in rows:
-            start_value = row.get("start")
-            end_value = row.get("end")
-            if start_value is None or end_value is None: continue
-            # print("rows")
+      for _, row in iterator_over_rows():
+          if not isinstance(row, Mapping): continue
+          start_value = row.get("start")
+          end_value = row.get("end")
+          if start_value is None or end_value is None: continue
+          label_value = row.get("speaker", row.get("label", "UNKNOWN"))
+          speaker_segments.append(SpeakerSegment(start=float(start_value), end=float(end_value), label=str(label_value)))
 
-            label_value = row.get("speaker", row.get("label", "UNKNOWN"))
-            speaker_segments.append(SpeakerSegment(start=float(start_value), end=float(end_value), label=str(label_value)))
 
     # fallback; plain dictionary with a "segments" list
     elif isinstance(diarization_result, dict) and "segments" in diarization_result:
-        for row_values in diarization_result["segments"]:
-            start_value = row_values.get("start")
-            end_value = row_values.get("end")
+        for list_values in diarization_result["segments"]:
+            start_value = list_values.get("start")
+            end_value = list_values.get("end")
             if start_value is None or end_value is None: continue
-            
-            # print("dictionary")
-
-            label_value = row_values.get("speaker") or row_values.get("label") or "UNKNOWN"
+            label_value = list_values.get("speaker") or list_values.get("label") or "UNKNOWN"
             speaker_segments.append(SpeakerSegment(start=float(start_value), end=float(end_value), label=str(label_value)))
 
     cleaned_segments: List[SpeakerSegment] = []
@@ -181,31 +177,26 @@ def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_r
             # primary source for backfilling -- label derived from overlapping diarization turns
             label: Optional[str] = _default_speaker_for_interval(float(word["start"]), float(word["end"]), turns)
             if label is None and previous_label is not None: label = previous_label
-            else: label = previous_label
             if label is None: continue #; print("label is none on line 362")
             word["speaker"] = label
             previous_label = label
 
 def postprocess_segments(diarization_result: DiarizationResult, alignment_result: AlignmentResult) -> bytes:
     """
-    merges word-level speaker labels into utterances using diarization turns as time boundaries. core logic
+    merges word level speakers and timings into final utterances and formats the transcript
 
     params:
-    alignment_result comes from whisperx.assign_word_speakers
-    diarization_result is a pyannote-style object, DataFrame, or dict
-    
-    # TODO REWRITE
-    steps:
-        1. normalises diarization_result into a sorted list of speaker turns
-        2. for segments without words, picks the label with longest overlap and emits one utterance
-        3. for segments with words:
-            splits by turn boundaries into subintervals
-            derives a default speaker per subinterval from overlapping turns
-            for each word uses its own "speaker", the interval default, or "UNKNOWN"
-        4. groups consecutive words with the same label and gap <= SPEAKER_GAP_THRESHOLD into utterances
-        5. sorts utterances and merges adjacent utterances from the same speaker when the gap <= SPEAKER_GAP_THRESHOLD
+    diarization_result is a pyannote style object, dataframe, or dict with diarization turns
+    alignment_result is the raw alignment output from whisperx.align with segments and words
 
-    returns chronologically sorted utterances
+    steps:
+        1. runs whisperx.assign_word_speakers and _fill_missing_word_speakers to attach a speaker label to as many words as possible
+        2. flattens all well formed word entries into a chronogical list of {start, end, word, speaker}
+        3. iterates over word list and builds Utterance runs by grouping consecutive words with the same speaker
+        4. merges adjacent Utterance objects for the same speaker when the silence between them is <= SPEAKER_GAP_THRESHOLD
+        5. formats the merged utterances as "[hh:mm:ss] speaker_xx: text" lines
+
+    returns the final transcript as utf8 encoded bytes
     """
     alignment_result = whisperx.assign_word_speakers(diarization_result, alignment_result)
     _fill_missing_word_speakers(alignment_result, diarization_result)
@@ -214,17 +205,27 @@ def postprocess_segments(diarization_result: DiarizationResult, alignment_result
     if not isinstance(segments, list): raise TranscriptionError("alignment_result must contain a segments list")
 
     # collect all well formed word entries from all segments
-    word_entries: List[Mapping[str, Any]] = []
+    word_entries: List[WordEntry] = []
     for segment in segments:
-        segment_words: List[Mapping[str, Any]] = segment.get("words") or []
+        segment_words: List[WordEntry] = segment.get("words") or []
+        if not isinstance(segment_words, list): continue
         for word_entry in segment_words:
-            if not isinstance(word_entry.get("start"), (int, float)): continue
-            if not isinstance(word_entry.get("end"), (int, float)): continue
-            if not isinstance(word_entry.get("word"), str): continue
-            word_entries.append(word_entry)
+            if not isinstance(word_entry, dict): continue
+            start_val = word_entry.get("start")
+            end_val = word_entry.get("end")
+            word_text = word_entry.get("word")
+            if not isinstance(start_val, (int, float)) or not isinstance(end_val, (int, float)): continue
+            if not isinstance(word_text, str): continue
+            entry: WordEntry = {
+                "start": float(start_val),
+                "end": float(end_val),
+                "word": word_text,
+                "speaker": word_entry.get("speaker"),}
+            word_entries.append(entry)
 
     # ensure a global chronological order before grouping
-    word_entries.sort(key=lambda word_entry: float(word_entry["start"]))
+    word_entries.sort(key=lambda word_entry: word_entry["start"])
+
 
     utterances: List[Utterance] = []
     leading_punctuation_regex: Pattern[str] = re.compile(r"^[\.\,\!\?\;\:\%\)\]\}]")
@@ -244,15 +245,15 @@ def postprocess_segments(diarization_result: DiarizationResult, alignment_result
 
     # current in progress utterance state
     current_speaker: Optional[str] = None  # label of the current speaker run
-    current_words: List[Mapping[str, Any]] = []  # words collected for the current speaker run
+    current_words: List[WordEntry] = []  # words collected for the current speaker run
 
     # first pass; build utterances directly from words and their speaker labels
     for word_entry in word_entries:
-        raw_label: Any = word_entry.get("speaker")
-        start_seconds: float = float(word_entry["start"])
+        raw_label = word_entry["speaker"]
+        start_seconds: float = float (word_entry["start"])
         # no label. either attach to the current utterance when close enough or flush the current one and skip
         if not raw_label and current_words:
-            gap_seconds: float = start_seconds - float(current_words[-1]["end"])
+            gap_seconds: float = start_seconds - float (current_words[-1]["end"])
             # treat unlabeled word as belonging to the current speaker when the gap is small
             if gap_seconds <= SPEAKER_GAP_THRESHOLD and current_speaker is not None: current_words.append(word_entry); continue
             # flush any existing utterance before dropping the unlabeled word
@@ -260,8 +261,8 @@ def postprocess_segments(diarization_result: DiarizationResult, alignment_result
                 text: str = ""
                 for current_word in current_words: text = _merge_text(text, str(current_word["word"]))
                 utterances.append(Utterance(
-                    start=float(current_words[0]["start"]),
-                    end=float(current_words[-1]["end"]),
+                    start = float (current_words[0]["start"]),
+                    end = float (current_words[-1]["end"]),
                     speaker=str(current_speaker),
                     text=text.strip()))
             current_speaker = None  # reset speaker state because we lost continuity
@@ -271,7 +272,7 @@ def postprocess_segments(diarization_result: DiarizationResult, alignment_result
         label: str = str(raw_label)
         if not current_words: current_speaker = label; current_words = [word_entry]; continue # starting a new utterance run
 
-        gap_seconds: float = start_seconds - float(current_words[-1]["end"])
+        gap_seconds: float = start_seconds - float (current_words[-1]["end"])
 
         # TODO explain
         if label == current_speaker and gap_seconds <= SPEAKER_GAP_THRESHOLD: current_words.append(word_entry)
@@ -280,8 +281,8 @@ def postprocess_segments(diarization_result: DiarizationResult, alignment_result
             text = ""
             for current_word in current_words: text = _merge_text(text, str(current_word["word"]))
             utterances.append(Utterance(
-                start=float(current_words[0]["start"]),
-                end=float(current_words[-1]["end"]),
+                start=float (current_words[0]["start"]),
+                end=float (current_words[-1]["end"]),
                 speaker=str(current_speaker),
                 text=text.strip()))
             current_speaker = label
@@ -292,8 +293,8 @@ def postprocess_segments(diarization_result: DiarizationResult, alignment_result
         text = ""
         for current_word in current_words: text = _merge_text(text, str(current_word["word"]))
         utterances.append(Utterance(
-            start=float(current_words[0]["start"]),
-            end=float(current_words[-1]["end"]),
+            start=float (current_words[0]["start"]),
+            end=float (current_words[-1]["end"]),
             speaker=str(current_speaker),
             text=text.strip()))
 
