@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node app.js"
   },
+  "build": "tsc",
+  "dev": "tsc --watch",
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -13,5 +15,9 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
   }
 }

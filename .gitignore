@@ -8,3 +8,4 @@ original
 .dockerignore
 Dockerfile
 fly.toml
+*.mp3
