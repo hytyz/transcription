@@ -1,50 +1,53 @@
-import { checkAuth } from './script.js'
-
 
 document.addEventListener("DOMContentLoaded", async () => {
-    checkAuth().then((res) => {
-        const anchor1 = document.getElementById("navbar-anchor1") as HTMLAnchorElement | null;
-        const anchor2 = document.getElementById("navbar-anchor2") as HTMLAnchorElement | null;
-        // console.log(res);
-        if (!res.payload) {
-            if (anchor1) {
-                anchor1.textContent = "login";
-                anchor1.href = "/login";
-            }
-            if (anchor2) {
-                anchor2.textContent = "register";
-                anchor2.href = "/register";
-            }
-        } else {
-            if (anchor1) {
-                anchor1.textContent = "view files"; // TODO
-                anchor1.href = "/dashboard";
-            }
-            if (anchor2) {
-                anchor2.textContent = "log out"; // TODO
-                anchor2.href = "/";
+    checkAuth()
+        .then((res) => {
+            const anchor1 = document.getElementById("navbar-anchor1");
+            const anchor2 = document.getElementById("navbar-anchor2");
 
-                anchor2.addEventListener("click", async (e) => {
-                    e.preventDefault();
-                    await fetch(`${AUTH_URL}/logout`, { method: "POST", credentials: "include" });
-                    window.location.href = "/";
-                });
+            if (!res.payload) {
+                if (anchor1) {
+                    anchor1.textContent = "login";
+                    anchor1.href = "/login";
+                }
+                if (anchor2) {
+                    anchor2.textContent = "register";
+                    anchor2.href = "/register";
+                }
+            } else {
+                if (anchor1) {
+                    anchor1.textContent = "view files";
+                    anchor1.href = "/dashboard";
+                }
+                if (anchor2) {
+                    anchor2.textContent = "log out";
+                    anchor2.href = "/";
+
+                    anchor2.addEventListener("click", async (e) => {
+                        e.preventDefault();
+                        await fetch(`${AUTH_URL}/logout`, { method: "POST", credentials: "include" });
+                        window.location.href = "/";
+                    });
+                }
             }
-        }
-    })
-        .catch((error) => { console.log(error); });
+        })
+        .catch((error) => {
+            console.log(error);
+        });
+
     const root = document.getElementById("file-card-root");
     if (!root) return;
-    const rootEl = root as HTMLElement;
 
     const resp = await fetch("file.html");
     const cardHtml = await resp.text();
-    rootEl.innerHTML = cardHtml;
+    root.innerHTML = cardHtml;
 
     const text = sessionStorage.getItem("transcriptionText") || "";
     const originalFilename = sessionStorage.getItem("transcriptionFilename") || "file";
+
     const baseFilename = originalFilename.replace(/^.*[\\/]/, "");
-    const nameEl = rootEl.querySelector(".file-card-name") as HTMLElement | null;
+
+    const nameEl = root.querySelector(".file-card-name");
     if (nameEl) nameEl.textContent = baseFilename;
 
     const now = new Date();
@@ -54,12 +57,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     const formattedDate = `${yyyy}, ${monthName} ${dd}`;
     const yyyymmdd = `${yyyy}${String(now.getMonth() + 1).padStart(2, "0")}${dd}`;
 
-    const dateEl = rootEl.querySelector(".file-card-date") as HTMLElement | null;
+    const dateEl = root.querySelector(".file-card-date");
     if (dateEl) dateEl.textContent = formattedDate;
-    const snippetEl = rootEl.querySelector(".file-card-snippet") as HTMLElement | null;
+
+    const snippetEl = root.querySelector(".file-card-snippet");
     if (snippetEl) snippetEl.textContent = text;
 
-    const downloadBtn = rootEl.querySelector(".download-button") as HTMLElement | null;
+    const downloadBtn = root.querySelector(".download-button");
     if (downloadBtn) {
         downloadBtn.addEventListener("click", () => {
             const baseNoExt = baseFilename.replace(/\.[^.]+$/, "");
@@ -76,9 +80,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             URL.revokeObjectURL(url);
         });
     }
-    
-    const expandButton = rootEl.querySelector(".file-card-expand") as HTMLElement | null;
-    const bodyElement = rootEl.querySelector(".file-card-body") as HTMLElement | null;
+
+    const expandButton = root.querySelector(".file-card-expand");
+    const bodyElement = root.querySelector(".file-card-body");
 
     if (expandButton && bodyElement) {
         expandButton.addEventListener("click", () => {
