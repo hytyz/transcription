@@ -1,21 +1,13 @@
-import requests
-from requests import Response
+import requests; from requests import Response
 from transcription import generate_diarized_transcript, get_current_state
-from dotenv import load_dotenv
-from fastapi import FastAPI
-from typing import Dict
-
-from dotenv import load_dotenv
+from dotenv import load_dotenv; from fastapi import FastAPI
 from fastapi import FastAPI, UploadFile, HTTPException
 
 from transcription import generate_diarized_transcript, get_current_state
 
-
-load_dotenv()
-
 queue: list = []
-current_file: bytes
-transcript_bytes: bytes
+current_file: bytes = bytes()
+transcript_bytes: bytes = bytes()
 S3_BUCKET: str = "https://s3-aged-water-5651.fly.dev/"
 
 # + receives audio files from gateway (from a client POST) and from s3 bucket's /transcriptions
@@ -27,48 +19,61 @@ S3_BUCKET: str = "https://s3-aged-water-5651.fly.dev/"
 
 # has a queue of job ids (pops the file after transcription.py returns)
 
+load_dotenv()
 app = FastAPI()
 
 def _process_queue() -> None:
+    if not queue: return
     global current_file
-    while queue:
-        jobid: str = queue[0]
-        try: transcript_bytes: bytes = generate_diarized_transcript(audio_bytes=current_file)
-        except Exception as e: transcript_bytes.write_bytes(str(e))
+    global transcript_bytes
+    
+    jobid: str = queue[0]
+    try: 
+        transcript_bytes: bytes = generate_diarized_transcript(audio_bytes=current_file)
+        _post_transcription_to_s3(jobid, transcript_bytes)
+    except Exception as e: transcript_bytes = bytes(e)
 
-        if queue and queue[0] == jobid: queue.pop(0)
+    if queue and queue[0] == jobid: queue.pop(0)
 
+def _post_audio_to_s3(jobid: str, audio_bytes: bytes) -> None:
+    data: dict[str, bytes] = {"jobid": jobid, "file": audio_bytes}
 
-@app.post("/queue")
-async def enqueue_job(file: UploadFile, jobid: str) -> Dict[str, str]:
+    resp: Response = requests.post(f"{S3_BUCKET}/queue", data=data)
+    resp.raise_for_status()
+
+def _post_transcription_to_s3(jobid: str, transcript_bytes: bytes) -> None:
+    data: dict[str, bytes] = {"jobid": jobid, "file": transcript_bytes}
+
+    resp: Response = requests.post(f"{S3_BUCKET}/queue", data=data)
+    resp.raise_for_status()
+
+@app.post("/upload")
+async def upload(file: UploadFile, jobid: str) -> dict[str, str]:
     """
     endpoint for other services to POST audio files
     """
     global current_file
+
     data: bytes = await file.read()
     current_state: str = get_current_state()
-    if current_state is not "idle" and jobid not in queue:
-        queue.append(jobid)
-        current_file = data
-        _process_queue(jobid)
-        return {"jobid": jobid, "status": "received"}
+
     if jobid not in queue: queue.append(jobid)
 
-    data: Dict[str, str] = {"jobid": jobid}
-
-    resp: Response = requests.post(f"{S3_BUCKET}/queue", data=data)
-    resp.raise_for_status()
+    if current_state != "idle":
+        _post_audio_to_s3(jobid, data)
+        return {"jobid": jobid, "status": "queued"}
+    
+    current_file = data
+    _process_queue() # WHEN SHOULD I CALL THIS
+    data: dict[str, str] = {"jobid": jobid}
 
     return {"jobid": jobid, "status": "queued"}
 
 
 @app.post("/status")
-async def get_status(jobid: str) -> Dict[str, str]:
+async def get_status(jobid: str) -> dict[str, str]:
     """
     status endpoint
-
-    if job is first in queue, returns the current pipeline state from transcription.py
-    if job is later in the queue, reports queued
     """
     if jobid in queue:
         if queue[0] == jobid: return {"jobid": jobid, "status": "processing", "pipeline_state": get_current_state()}
@@ -78,46 +83,12 @@ async def get_status(jobid: str) -> Dict[str, str]:
 
 
 @app.post("/transcriptions")
-async def get_transcription(jobid: str) -> str:
+async def get_transcription() -> str:
     """
     returns the transcription text for a completed job
     """
     global transcript_bytes
-    transcript_bytes = transcript_bytes.get(jobid)
     if transcript_bytes is None: raise HTTPException(status_code=404, detail="transcription not found")
-    return transcript_bytes.decode("utf-8", errors="replace")
+    return transcript_bytes.decode("utf-8")
 
-def get_transcription_state() -> str: return get_current_state()
-
-
-# OLD STUFF FROM YAPPER
-
-def download_audio(base_url: str, jobid: str) -> bytes:
-    """downloads raw audio bytes for a job id from api"""
-    resp: Response = requests.get(f"{base_url}/queue/{jobid}")  # get request to queue endpoint
-    if resp.status_code == 404: raise RuntimeError(f"audio file for job '{jobid}' not found")
-    resp.raise_for_status()
-    return resp.content
-
-def upload_transcription(base_url: str, jobid: str, text_bytes: bytes) -> None:
-    """uploads a text transcription for a job id to api"""
-    files: dict[str, tuple[str, bytes, str]] = {"file": ("transcription.txt", text_bytes, "text/plain")} 
-    data: dict[str, str] = {"jobid": jobid}
-    resp: Response = requests.post(f"{base_url}/transcriptions", files=files, data=data) # post request to upload transcription
-    resp.raise_for_status()
-
-def process_job(base_url: str, jobid: str) -> None:
-    """runs the full transcription pipeline for a single job?"""
-    audio_bytes: bytes = download_audio(base_url=base_url, jobid=jobid)
-    def _report_state(state: str) -> None: 
-        try: upload_status(base_url=base_url, jobid=jobid, state=state) 
-        except Exception: pass
-
-    text_bytes: bytes = generate_diarized_transcript(audio_bytes=audio_bytes, on_state_change=_report_state)
-    upload_transcription(base_url=base_url, jobid=jobid, text_bytes=text_bytes)
-
-def upload_status(base_url: str, jobid: str, state: str) -> None:
-    """posts the current pipeline state for a job id to /status"""
-    data: dict[str, str] = {"jobid": jobid, "state": state}
-    resp: Response = requests.post(f"{base_url}/status", json=data)
-    resp.raise_for_status()
+async def get_transcription_state() -> str: return get_current_state()
