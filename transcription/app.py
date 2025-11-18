@@ -1,5 +1,5 @@
 import requests; from requests import Response
-from transcription import generate_diarized_transcript, get_current_state
+from transcription import generate_diarized_transcript
 from dotenv import load_dotenv; from fastapi import FastAPI
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 import asyncio
@@ -30,12 +30,15 @@ def _post_audio_to_s3(jobid: str, audio_bytes: bytes, filename: str | None) -> N
 
 def _post_transcription_to_s3(jobid: str, transcript_bytes: bytes) -> None:
     """posts a transcription blob and its job id to the s3 /transcriptions endpoint"""
+    print("we are in the beginning of posting to s3")
     files: dict[str, tuple[str, bytes, str]] = {
         "file": ("transcription.txt", transcript_bytes, "text/plain")
     }
     data: dict[str, str] = {"jobid": jobid}
     resp: Response = requests.post(f"{S3_BUCKET}/transcriptions", files=files, data=data)
     resp.raise_for_status()
+    print("we are in the end of posting to s3")
+    print(resp)
 
 async def _process_queue() -> None:
     global queue
@@ -93,5 +96,3 @@ async def get_status(jobid: str) -> dict[str, str]:
     if jobids[0] == jobid: return {"jobid": jobid, "status": "transcribing"}
 
     return {"jobid": jobid, "status": "queued"}
-
-# async def get_transcription_state() -> str: return get_current_state()

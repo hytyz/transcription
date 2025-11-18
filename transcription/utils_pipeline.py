@@ -67,8 +67,7 @@ def postprocess_segments(diarization_result: DataFrame, alignment_result: Alignm
     lines: list[str] = []
     for segment in alignment_result.get("segments", []):
         words = [w for w in segment.get("words", []) if isinstance(w, dict) and isinstance(w.get("word"), str)]
-        if not words:
-            continue
+        if not words: continue
         start = float(words[0].get("start") or 0.0)
         speaker = str(words[0].get("speaker") or "UNKNOWN")
         text = " ".join(w["word"] for w in words)
@@ -85,29 +84,26 @@ def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_r
     and falls back to the previous word label in the same segment when needed.
     mutates alignment_result and doesn't return anything
     """
-    
-    diar = []
-    for _, row in diarization_result.iterrows():
-        if "start" in row and "end" in row:
-            diar.append(
+    diarization_intervals = []
+    for _, diarization_row in diarization_result.iterrows():
+        if "start" in diarization_row and "end" in diarization_row:
+            diarization_intervals.append(
                 (
-                    float(row["start"]),
-                    float(row["end"]),
-                    str(row.get("speaker") or row.get("label") or ""),
+                    float(diarization_row["start"]),
+                    float(diarization_row["end"]),
+                    str(diarization_row.get("speaker") or diarization_row.get("label") or ""),
                 )
             )
 
     for segment in alignment_result.get("segments", []):
-        for word in segment.get("words", []):
-            if word.get("speaker"):
-                continue
-            start = word.get("start")
-            if start is None:
-                continue
-            t = float(start)
-            for s, e, label in diar:
-                if s <= t < e and label:
-                    word["speaker"] = label
+        for word_entry in segment.get("words", []):
+            if word_entry.get("speaker"): continue
+            word_start = word_entry.get("start")
+            if word_start is None: continue
+            word_time = float(word_start)
+            for interval_start, interval_end, interval_label in diarization_intervals:
+                if interval_start <= word_time < interval_end and interval_label:
+                    word_entry["speaker"] = interval_label
                     break
 
 def _format_timestamp(total_seconds: float) -> str:
