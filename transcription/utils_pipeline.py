@@ -8,7 +8,7 @@ from utils_models import get_align_model, get_diarization_pipeline, get_device, 
 from utils_postprocess import fill_missing_word_speakers, format_timestamp, merge_text
 
 DEVICE: str = get_device()
-STATES: tuple[str, str, str, str, str] = ("received", "transcribing", "aligning", "diarizing", "post-processing")
+STATES: tuple[str, str, str, str, str, str] = ("idle", "received", "transcribing", "aligning", "diarizing", "post-processing")
 _FFMPEG_AVAILABLE: bool = which("ffmpeg") is not None # caching ffmpeg presence so that it's not called repeatedly
 _SPEAKER_GAP_THRESHOLD: float = 0.7 # maximum permitted silence when merging words and utterances for the same speaker
 

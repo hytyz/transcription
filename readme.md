@@ -10,4 +10,5 @@ stretch goals:
 1. rust ui
 2. cli
 3. ts
+4. track success state of transcription in db (fix gpu api)
 
