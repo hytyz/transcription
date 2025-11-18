@@ -35,6 +35,7 @@ def get_whisper_model() -> FasterWhisperPipeline:
     except Exception as e: raise Exception(f"model '{model_name}' failed to load: {e}") from e
 
     _WHISPER_MODEL = model
+    print("got whisper model")
     return model
 
 def get_align_model() -> tuple[torch.nn.Module, AlignMetadata]:
@@ -42,6 +43,7 @@ def get_align_model() -> tuple[torch.nn.Module, AlignMetadata]:
     global _ALIGN_MODEL, _ALIGN_METADATA
     if _ALIGN_MODEL is None or _ALIGN_METADATA is None: 
         _ALIGN_MODEL, _ALIGN_METADATA = whisperx.load_align_model(language_code="en", device=_DEVICE)
+    print("got align model")
     return cast(torch.nn.Module, _ALIGN_MODEL), cast(AlignMetadata, _ALIGN_METADATA)
 
 def get_diarization_pipeline() -> DiarizationPipeline:
@@ -50,6 +52,7 @@ def get_diarization_pipeline() -> DiarizationPipeline:
     if _DIARIZATION_PIPELINE is None:
         # https://github.com/m-bain/whisperX/issues/499 -- do NOT switch from the 2.1 model
         _DIARIZATION_PIPELINE = DiarizationPipeline(model_name="pyannote/speaker-diarization@2.1", use_auth_token=_HF_TOKEN, device=_DEVICE)
-        try: _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": DIARIZATION_CLUSTER_THRESHOLD}}) # type: ignore[attr-defined]
-        except Exception as e: raise Exception(f"diarization pipeline failed: {e}") from e
+        try: _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": DIARIZATION_CLUSTER_THRESHOLD}}) 
+        except Exception as e: pass
+    print("got dia model")
     return cast(DiarizationPipeline, _DIARIZATION_PIPELINE)

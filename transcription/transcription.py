@@ -25,7 +25,8 @@ def generate_diarized_transcript(audio_bytes: bytes, on_state_change: Callable[[
         diarization_result: DataFrame = run_diarization_pipeline(audio)
         _set_state(5)
         transcript_bytes: bytes = postprocess_segments(diarization_result, alignment_result)
+        print("we are before return")
         return transcript_bytes
     except TranscriptionError as e: raise TranscriptionError(f"transcription with diarization failed: {e}") from e
     except Exception as e: raise Exception(f"transcription with diarization failed: {e}") from e
-    finally: _set_state(0) # reset current status even if threw exception
+    # finally: _set_state(0) # reset current status even if threw exception

@@ -2,6 +2,7 @@ import requests; from requests import Response
 from transcription import generate_diarized_transcript, get_current_state
 from dotenv import load_dotenv; from fastapi import FastAPI
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+import asyncio
 
 # + receives audio files from gateway (from a client POST) and from s3 bucket's /transcriptions
 # + POSTs the audio file to s3 bucket's /queue if currently transcribing (get_status from transcription.py) or received return from transcription_py 
@@ -16,6 +17,7 @@ load_dotenv()
 app = FastAPI()
 queue: list[tuple[str, bytes]] = []
 S3_BUCKET: str = "https://s3-aged-water-5651.fly.dev"
+currently_processing: bool = False
 
 def _post_audio_to_s3(jobid: str, audio_bytes: bytes, filename: str | None) -> None:
     """posts an audio blob and its job id to the s3 /queue endpoint"""
@@ -35,31 +37,45 @@ def _post_transcription_to_s3(jobid: str, transcript_bytes: bytes) -> None:
     resp: Response = requests.post(f"{S3_BUCKET}/transcriptions", files=files, data=data)
     resp.raise_for_status()
 
-def _process_queue() -> None:
+async def _process_queue() -> None:
+    global queue
+    global currently_processing
     """process all jobs that are in queue"""
     while queue:
         jobid, audio_bytes = queue[0]
-
-        try: transcript_bytes: bytes = generate_diarized_transcript(audio_bytes=audio_bytes)
+        currently_processing = True
+        try: 
+            print("in try")
+            transcript_bytes: bytes = generate_diarized_transcript(audio_bytes=audio_bytes)
         except Exception as e:
+            print(e)
+            print("in exception")
             error_text: str = f"transcription failed for job '{jobid}': {e}"
             transcript_bytes = error_text.encode("utf-8")
         finally: 
+            currently_processing = False
+            print("in finally")
             queue.pop(0)
 
         _post_transcription_to_s3(jobid, transcript_bytes)
 
 @app.post("/upload")
 async def upload(file: UploadFile = File(...), jobid: str = Form(...)) -> dict[str, str]:
+    global queue
+    global currently_processing
     """receives an audio blob and a job id, and either forwards the audio to s3 or runs local transcription"""
     audio_bytes: bytes = await file.read()
     queue.append((jobid, audio_bytes))
-
-    if get_transcription_state() != "idle":
+    # if queue: print("queue in slash upload " + str(queue))
+    print("in slash upload " + jobid)
+    print("in slash upload take 2 " + str({"jobid": jobid, "status": "completed"}))
+    if currently_processing:
         _post_audio_to_s3(jobid, audio_bytes, file.filename)
         return {"jobid": jobid, "status": "queued"}
 
-    _process_queue()
+    if jobid is None: jobid = "you did not provide a jobid"
+
+    asyncio.create_task(_process_queue())
     return {"jobid": jobid, "status": "completed"}
 
 @app.post("/status")
@@ -67,12 +83,15 @@ async def get_status(jobid: str) -> dict[str, str]:
     """
     status endpoint
     """
+    global queue
+    print("in slash status " + jobid)
     jobids: list[str] = [queued_jobid for queued_jobid, _ in queue]
-
+    if queue: print("queue in slash status EXISTS.")
+    print("in slash status from list " + jobids[0])
     if jobid not in jobids: raise HTTPException(status_code=404, detail="job not found")
 
-    if jobids[0] == jobid: return {"jobid": jobid, "status": get_transcription_state()}
+    if jobids[0] == jobid: return {"jobid": jobid, "status": "transcribing"}
 
     return {"jobid": jobid, "status": "queued"}
 
-def get_transcription_state() -> str: return get_current_state()
+# async def get_transcription_state() -> str: return get_current_state()
