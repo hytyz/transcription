@@ -1,3 +1,14 @@
+# import builtins; import inspect
+# import logging; import warnings
+
+# def _builtins_print(*args, **kwargs):
+#     if inspect.currentframe().f_back.f_globals.get("__name__") == "app":
+#         builtins.print(*args, **kwargs)
+
+# logging.disable(logging.CRITICAL)
+# warnings.filterwarnings("ignore")
+# builtins.print = _builtins_print
+
 import os; import torch; import whisperx
 from typing import cast
 from whisperx.asr import FasterWhisperPipeline
@@ -26,7 +37,14 @@ def get_whisper_model() -> FasterWhisperPipeline:
     if _WHISPER_MODEL is not None: return _WHISPER_MODEL
     model_name: str = "large"
 
-    try: model: FasterWhisperPipeline = whisperx.load_model(model_name, _DEVICE, compute_type="float16")
+    asr_options = {
+        "beam_size": 7,
+        "patience": 1.2,
+        "hotwords": "BCIT, BCITSA, CO-ED, CO-EDs, Marisa, Sameer, Shervin, Polina, Shaleeta, Council, Councillor, Councillors, Set Rep, bylaws",
+        "suppress_numerals": True,
+    }
+
+    try: model: FasterWhisperPipeline = whisperx.load_model(model_name, _DEVICE, compute_type="float16", asr_options=asr_options)
     except ValueError as e:
         message = str(e).lower()
         if "float16" in message: model = whisperx.load_model(model_name, _DEVICE, compute_type="float32")
@@ -35,7 +53,6 @@ def get_whisper_model() -> FasterWhisperPipeline:
     except Exception as e: raise Exception(f"model '{model_name}' failed to load: {e}") from e
 
     _WHISPER_MODEL = model
-    print("got whisper model")
     return model
 
 def get_align_model() -> tuple[torch.nn.Module, AlignMetadata]:
@@ -43,7 +60,6 @@ def get_align_model() -> tuple[torch.nn.Module, AlignMetadata]:
     global _ALIGN_MODEL, _ALIGN_METADATA
     if _ALIGN_MODEL is None or _ALIGN_METADATA is None: 
         _ALIGN_MODEL, _ALIGN_METADATA = whisperx.load_align_model(language_code="en", device=_DEVICE)
-    print("got align model")
     return cast(torch.nn.Module, _ALIGN_MODEL), cast(AlignMetadata, _ALIGN_METADATA)
 
 def get_diarization_pipeline() -> DiarizationPipeline:
@@ -54,5 +70,4 @@ def get_diarization_pipeline() -> DiarizationPipeline:
         _DIARIZATION_PIPELINE = DiarizationPipeline(model_name="pyannote/speaker-diarization@2.1", use_auth_token=_HF_TOKEN, device=_DEVICE)
         try: _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": DIARIZATION_CLUSTER_THRESHOLD}}) 
         except Exception as e: pass
-    print("got dia model")
     return cast(DiarizationPipeline, _DIARIZATION_PIPELINE)

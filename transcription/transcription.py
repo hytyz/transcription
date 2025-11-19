@@ -14,3 +14,25 @@ def generate_diarized_transcript(audio_bytes: bytes) -> bytes:
         return transcript_bytes
     except TranscriptionError as e: raise TranscriptionError(f"transcription with diarization failed: {e}") from e
     except Exception as e: raise Exception(f"transcription with diarization failed: {e}") from e
+
+import argparse
+from pathlib import Path
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("audio_path")
+    args = parser.parse_args()
+
+    input_path = Path(args.audio_path)
+    output_path = input_path.with_suffix(".txt")
+
+    with input_path.open("rb") as f: audio_bytes = f.read()
+
+    transcript_bytes = generate_diarized_transcript(audio_bytes)
+    transcript_text = transcript_bytes.decode("utf-8")
+
+    with output_path.open("w", encoding="utf-8") as f: f.write(transcript_text)
+
+
+if __name__ == "__main__":
+    main()
