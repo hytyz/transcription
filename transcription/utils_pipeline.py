@@ -27,40 +27,28 @@ def load_audio(data:bytes) -> ndarray:
     
     audio = frombuffer(out, dtype=int16)
     if audio.size == 0: raise TranscriptionError("decoded audio is empty")
-    print("in load audio")
     return audio.astype("float32") / 32768.0
 
 def transcribe_audio(audio: ndarray) -> TranscriptionResult:
     """run transcription on audio and return raw segments via cached whisperx model"""
     whisper_model: FasterWhisperPipeline = get_whisper_model()
-    with torch.inference_mode(): result: TranscriptionResult = whisper_model.transcribe(audio, language="en", task="transcribe")
-    print("in transcribe audio")
+    with torch.inference_mode(): result: TranscriptionResult = whisper_model.transcribe(audio, language="en", task="transcribe") 
     return result
 
 def align_transcript_segments(audio: ndarray, segments: list[SegmentDict]) -> AlignmentResult:
     """aligns raw whisperx segments to audio via the cached alignment model"""
     align_model, align_metadata = get_align_model()
     alignment_result: AlignmentResult = whisperx.align(segments, align_model, align_metadata, audio, DEVICE)
-    print("in align transcript segments")
     return alignment_result
 
 def run_diarization_pipeline(audio: ndarray) -> DataFrame:
-    """
-    runs speaker diarization on audio via the cached diarization pipeline
-    returns a pandas DataFrame of time spans for each detected speaker
-    """
+    """runs speaker diarization on audio via the cached diarization pipeline"""
     diarization_pipeline = get_diarization_pipeline()
     diarization_result: DataFrame = diarization_pipeline(audio, min_speakers=2, max_speakers=5)
-    print("in run dia pipeline")
     return diarization_result
 
 def postprocess_segments(diarization_result: DataFrame, alignment_result: AlignmentResult) -> bytes:
-    """
-    merges word level speakers and timings into final utterances and formats the transcript
-
-    uses diarization to fill missing word speakers, groups consecutive words by speaker and time gaps,
-    merges nearby utterances for the same speaker, and returns lines like "[hh:mm:ss] SPEAKER: text" as UTF-8 bytes
-    """
+    """merges word level speakers and timings into final utterances and formats the transcript"""
     alignment_result = whisperx.assign_word_speakers(diarization_result, alignment_result)
     _fill_missing_word_speakers(alignment_result, diarization_result)
 
@@ -77,23 +65,13 @@ def postprocess_segments(diarization_result: DataFrame, alignment_result: Alignm
 
 
 def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_result: DataFrame) -> None:
-    """
-    fills missing word "speaker" fields in alignment_result using diarization turns
-
-    normalises diarization into SpeakerSegment turns, uses the time grid index to pick labels for each word interval, 
-    and falls back to the previous word label in the same segment when needed.
-    mutates alignment_result and doesn't return anything
-    """
+    """fills missing word "speaker" fields in alignment_result using diarization turns"""
     diarization_intervals = []
     for _, diarization_row in diarization_result.iterrows():
         if "start" in diarization_row and "end" in diarization_row:
             diarization_intervals.append(
-                (
-                    float(diarization_row["start"]),
-                    float(diarization_row["end"]),
-                    str(diarization_row.get("speaker") or diarization_row.get("label") or ""),
-                )
-            )
+                (float(diarization_row["start"]), float(diarization_row["end"]), 
+                 str(diarization_row.get("speaker") or diarization_row.get("label") or "")))
 
     for segment in alignment_result.get("segments", []):
         for word_entry in segment.get("words", []):
