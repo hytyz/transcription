@@ -71,7 +71,7 @@ async function renderNextPage() {
     const slice = allTranscriptions.slice(nextIndex, nextIndex + PAGE_SIZE);
 
     for (const item of slice) {
-        const card = await createCardFromTemplate(item.jobid, item.created_at);
+        const card = await createCardFromTemplate(item.jobid, item.created_at, item.filename);
         container.appendChild(card);
     }
 
@@ -90,7 +90,7 @@ async function renderNextPage() {
     }
 }
 
-async function createCardFromTemplate(jobid, createdAt) {
+async function createCardFromTemplate(jobid, createdAt, filename) {
     const templateHtml = await fetch("file.html").then(r => r.text());
 
     // create element from template
@@ -106,7 +106,7 @@ async function createCardFromTemplate(jobid, createdAt) {
     const bodyEl = card.querySelector(".file-card-body");
 
     // fill in metadata into cards
-    nameEl.textContent = jobid;
+    nameEl.textContent = filename;
     dateEl.textContent = new Date(createdAt).toLocaleString();
 
     // get transcript text
