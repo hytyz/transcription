@@ -89,10 +89,12 @@ async def upload(request: Request, file: UploadFile = File(...), jobid: str = Fo
     global currently_processing
 
     token = request.cookies.get("token")
-    if token: jwt_email = _decode_jwt_email(token)
+    jwt_email: str | None = None
+    if token: 
+        jwt_email = _decode_jwt_email(token)
+        if jwt_email: print(f"{FORMAT}decoded email in slash upload: {jwt_email}{RESET}")
     # print(f"{FORMAT}token in slash upload: {token}{RESET}")
-    print(f"{FORMAT}decoded email in slash upload: {jwt_email}{RESET}")
-
+    
     audio_bytes: bytes = await file.read()
     queue.append((jobid, audio_bytes))
     print(f"{FORMAT}received a file from client or s3 bucket{RESET}")
