@@ -142,6 +142,24 @@ const app = Bun.serve({
       return json({ status: "ok", jobid, key, message: "updated in place" });
     }
 
+    // GET /transcriptions/:jobid —
+    const tMatch = pathname.match(/^\/transcriptions\/(.+)$/);
+    if (req.method === "GET" && tMatch) {
+      const jobid = tMatch[1];
+      const Key = `transcriptions/${jobid}.txt`;
+
+      try {
+        const res = await s3.send(
+          new GetObjectCommand({ Bucket: BUCKET, Key })
+        );
+        return new Response(res.Body as any, {
+          headers: { "Content-Type": "text/plain" },
+        });
+      } catch {
+        return json({ status: "error", message: "file not found" }, 404);
+      }
+    }
+
     return json({ status: "error", message: "not found" }, 404);
   },
 });
