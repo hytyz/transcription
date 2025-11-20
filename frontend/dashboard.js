@@ -148,6 +148,7 @@ function formatToYYYYMMDD(date) {
 }
 
 function downloadText(text, filename) {
+    // point of the blob is to prevent a repeated fetch to our s3 service when downloading
     const blob = new Blob([text], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
 
