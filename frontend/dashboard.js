@@ -14,27 +14,12 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             setupNavbar();
             loadTranscriptions();
-            showUsageInHeader();
+
 
         })
         .catch(() => window.location.href = "/login");
 });
 
-async function showUsageInHeader() {
-    try {
-        const res = await fetch(`${AUTH_URL}/myusage/`, {
-            credentials: "include"
-        });
-        const data = await res.json();
-
-        if (data.usage !== undefined) {
-            const usageWarning = data.usage > 20 ? " (high usage)" : "";
-            document.getElementsByClassName("dashboard-title")[0].insertAdjacentHTML("beforeend", ` - ${data.usage} api calls used${usageWarning}`);
-        }
-    } catch (e) {
-        console.error("Failed to load usage", e);
-    }
-}
 
 
 
