@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const api_url = `${BASE_URL}/api`;
   let gpuURL = api_url;
   let s3URL = `${BASE_URL}/s3`;
+  const WebSocketURL = "wss://pataka.tail2feabe.ts.net/ws/status";
 
   const audioFileInput = document.getElementById("audio-file");
   const dropButton = document.querySelector(".drop-button");
@@ -23,7 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function startTranscription(file) {
     const formData = new FormData();
-    formData.append("jobid", String(crypto.randomUUID())); 
+    formData.append("jobid", String(crypto.randomUUID()));
     formData.append("file", file);
 
     try {
@@ -54,7 +55,9 @@ document.addEventListener("DOMContentLoaded", () => {
       currentJobId = data.jobid;
       localStorage.setItem("currentJobId", currentJobId);
 
-      startPollingStatus();
+      // startPollingStatus();
+      startWebSocket(currentJobId);
+
     } catch (err) {
       console.error("error starting transcription:", err);
       alert("error starting transcription.");
@@ -62,26 +65,66 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function startPollingStatus() {
-    if (pollInterval) clearInterval(pollInterval);
+  // function startPollingStatus() {
+  //   if (pollInterval) clearInterval(pollInterval);
 
-    pollInterval = setInterval(async () => {
-      try {
-        const res = await fetch(`${s3URL}/transcriptions/${currentJobId}`);
-        if (!res.ok) return;
+  //   pollInterval = setInterval(async () => {
+  //     try {
+  //       const res = await fetch(`${s3URL}/transcriptions/${currentJobId}`);
+  //       if (!res.ok) return;
 
-        // const data = await res.json();
+  //       // const data = await res.json();
 
-        else {
-          clearInterval(pollInterval);
-          pollInterval = null;
-          fetchTranscription();
-        }
-      } catch (err) {
-        console.error("polling error:", err);
+  //       else {
+  //         clearInterval(pollInterval);
+  //         pollInterval = null;
+  //         fetchTranscription();
+  //       }
+  //     } catch (err) {
+  //       console.error("polling error:", err);
+  //     }
+  //   }, 10000);
+  // }
+  function startWebSocket(jobid) {
+    const ws = new WebSocket(`${WebSocketURL}`);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ jobid }));
+      console.log("WS connected for job:", jobid);
+    };
+
+    ws.onmessage = async (event) => {
+      const msg = JSON.parse(event.data);
+      console.log("WS status:", msg);
+
+      setTranscriptionStatus(msg.status);
+
+
+      if (msg.status === "queued") {
+        console.log("Queued…");
       }
-    }, 10000);
+      if (msg.status === "processing") {
+        console.log("Transcribing…");
+      }
+
+      if (msg.status === "completed") {
+        ws.close();
+        fetchTranscription();
+      }
+
+      if (msg.status === "error") {
+        ws.close();
+        alert("Transcription failed: " + msg.error);
+      }
+    };
+
+    ws.onerror = (e) => console.error("WS error:", e);
+    ws.onclose = () => console.log("WS closed");
   }
+
+async function setTranscriptionStatus(status) {
+    document.getElementById("transcription-status").textContent = status;
+}
 
   async function fetchTranscription() {
     try {
