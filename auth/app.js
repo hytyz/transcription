@@ -23,6 +23,39 @@ const JWT_EXP_SECONDS = parseInt(process.env.JWT_EXP_SECONDS, 10);
 const PRIVATE_KEY = fs.readFileSync(PRIVATE_KEY_PATH, 'utf8');
 const PUBLIC_KEY = fs.readFileSync(PUBLIC_KEY_PATH, 'utf8');
 
+async function seedSampleUsers() {
+    const samples = [
+        { email: "admin@admin.com", password: "111" },
+        { email: "alice@example.com", password: "123" }
+    ];
+
+    for (const u of samples) {
+        await new Promise(resolve => {
+            db.get(`SELECT email FROM users WHERE email = ?`, [u.email], async (err, row) => {
+                if (err) return resolve(); // skip if we error or the user already exists
+                if (row) return resolve();
+
+                const salt = genSalt();
+                const hash = await hashPassword(u.password, salt);
+
+                const stmt = db.prepare(
+                    `INSERT INTO users(email, password_hash, salt, api_usage)
+                     VALUES(?,?,?,0)`
+                );
+
+                stmt.run(u.email, hash, salt, err => {
+                    if (!err) {
+                        console.log(`Seeded sample user: ${u.email}`);
+                    }
+                    resolve();
+                });
+
+                stmt.finalize();
+            });
+        });
+    }
+}
+
 const db = new sqlite3.Database(DB_PATH);
 db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS users (
@@ -31,7 +64,24 @@ db.serialize(() => {
     salt TEXT NOT NULL,
     api_usage INTEGER NOT NULL DEFAULT 0
   );`);
+
+    // transcriptions table
+    db.run(`CREATE TABLE IF NOT EXISTS transcriptions (
+        jobid TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY(email) REFERENCES users(email) ON DELETE CASCADE
+    );`);
+
+    // look at this absolutely professional use of .then and .catch
+    seedSampleUsers().then(() => {
+        console.log("Sample users seeding complete.");
+    }).catch(err => {
+        console.error("Error seeding sample users:", err);
+    });
+
 });
+
 
 function base64url(input) {
     return Buffer.from(input).toString('base64')
@@ -230,6 +280,69 @@ app.get('/usage', (req, res) => {
         return res.json({ users: rows });
     });
 });
+
+app.post('/transcriptions/add', (req, res) => {
+    const { email, jobid } = req.body || {};
+    if (!email || !jobid) {
+        return res.status(400).json({ error: "email and jobid required" });
+    }
+
+    const createdAt = Math.floor(Date.now() / 1000);
+
+    db.serialize(() => {
+        //insert transcription record
+        const stmt1 = db.prepare(
+            'INSERT INTO transcriptions(jobid, email, created_at) VALUES(?,?,?)'
+        );
+        stmt1.run(jobid, email, createdAt, function (err) {
+            if (err) {
+                if (err.message.includes('UNIQUE')) {
+                    return res.status(409).json({ error: 'jobid already exists' });
+                }
+                return res.status(500).json({ error: 'db error', details: err.message });
+            }
+
+            //increment usage when a new transcription is added
+            const stmt2 = db.prepare(
+                'UPDATE users SET api_usage = api_usage + 1 WHERE email = ?'
+            );
+            stmt2.run(email, function (err) {
+                if (err) {
+                    return res.status(500).json({ error: 'db error (usage increment)' });
+                }
+
+                if (this.changes === 0) {
+                    return res.status(404).json({ error: 'user not found' });
+                }
+
+                return res.status(201).json({
+                    ok: true,
+                    jobid,
+                    email,
+                    incremented: true
+                });
+            });
+            stmt2.finalize();
+        });
+        stmt1.finalize();
+    });
+});
+
+
+
+app.get('/transcriptions/:email', (req, res) => {
+    const email = req.params.email;
+
+    db.all(
+        'SELECT jobid, created_at FROM transcriptions WHERE email = ? ORDER BY created_at DESC',
+        [email],
+        (err, rows) => {
+            if (err) return res.status(500).json({ error: 'db error' });
+            return res.json({ email, transcriptions: rows });
+        }
+    );
+});
+
 
 app.get('/health', (req, res) => res.json({ ok: true })); // deprecate when fully self hosted
 
