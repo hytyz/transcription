@@ -86,7 +86,7 @@ async def _process_queue() -> None:
         jobid, audio_bytes = queue[0]
         currently_processing = True
         await broadcast(jobid, {"status": "converting"})
-        # await asyncio.sleep(0)     # <<< yield control to event loop 
+
         try: 
             audio_bytes = await asyncio.to_thread(convert_to_wav, audio_bytes)
             await broadcast(jobid, {"status": "transcribing"})
@@ -101,7 +101,7 @@ async def _process_queue() -> None:
             currently_processing = False
             queue.pop(0)
 
-        await broadcast(jobid, {"status": "uploading"})
+        
         _post_transcription_to_s3(jobid, transcript_bytes)
         await broadcast(jobid, {"status": "completed"})
 
