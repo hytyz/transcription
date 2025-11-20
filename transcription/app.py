@@ -7,6 +7,7 @@ import asyncio
 import os
 from typing import Optional
 import jwt
+import subprocess
 
 AUTH_URL = "https://polina-gateway.fly.dev/auth"
 AUTH_PUBLIC_KEY = os.environ["AUTH_PUBLIC_KEY"]
@@ -18,6 +19,27 @@ app = FastAPI()
 queue: list[tuple[str, bytes]] = []
 S3_BUCKET: str = "https://s3-aged-water-5651.fly.dev"
 currently_processing: bool = False
+
+def convert_to_wav(audio_bytes: bytes) -> bytes:
+    """Convert any audio format to mono wav begdrugingly using subprocess and ffmpeg."""
+    try:
+        process = subprocess.Popen(
+            [
+                "ffmpeg", "-y",
+                "-i", "pipe:0",      # input from STDIN
+                "-ac", "1",          # mono
+                "-ar", "16000",      # 16kHz
+                "-f", "wav",         # output format
+                "pipe:1",            # output to STDOUT
+            ],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,)
+        out, err = process.communicate(input=audio_bytes)
+        if process.returncode != 0:
+            raise RuntimeError(f"FFmpeg conversion failed: {err.decode()}")
+        return out
+    except Exception as e:
+        print("FFmpeg error:", e)
+        raise
 
 def _post_audio_to_s3(jobid: str, audio_bytes: bytes, filename: str | None) -> None:
     """posts an audio blob and its job id to the s3 /queue endpoint"""
@@ -46,6 +68,8 @@ async def _process_queue() -> None:
         jobid, audio_bytes = queue[0]
         currently_processing = True
         try: 
+            audio_bytes = await asyncio.to_thread(convert_to_wav, audio_bytes)
+
             transcript_bytes: bytes = await asyncio.to_thread(
                 generate_diarized_transcript,
                 audio_bytes=audio_bytes,
