@@ -14,6 +14,7 @@ from typing import cast
 from whisperx.asr import FasterWhisperPipeline
 from whisperx.diarize import DiarizationPipeline
 from utils_types import TranscriptionError, AlignMetadata
+from utils_options import asr_options
 
 # determines the n of speakers and how often segments are merged or split across speakers
 DIARIZATION_CLUSTER_THRESHOLD: float = 0.6 # try lowering to reduce overmerging
@@ -36,13 +37,6 @@ def get_whisper_model() -> FasterWhisperPipeline:
     global _WHISPER_MODEL
     if _WHISPER_MODEL is not None: return _WHISPER_MODEL
     model_name: str = "large"
-
-    asr_options = {
-        "beam_size": 7,
-        "patience": 1.2,
-        "hotwords": "BCIT, BCITSA, CO-ED, CO-EDs, Marisa, Sameer, Shervin, Polina, Shaleeta, Council, Councillor, Councillors, Set Rep, bylaws",
-        "suppress_numerals": True,
-    }
 
     try: model: FasterWhisperPipeline = whisperx.load_model(model_name, _DEVICE, compute_type="float16", asr_options=asr_options)
     except ValueError as e:

@@ -59,9 +59,9 @@ async def _process_queue() -> None:
 
         _post_transcription_to_s3(jobid, transcript_bytes)
 
-def _post_jobid_to_auth(jobid: str, email: str) -> None:
+def _post_jobid_to_auth(jobid: str, email: str, filename: str) -> None:
     """posts a transcription job id and user email to the auth api"""
-    data: dict[str, str] = {"jobid": jobid, "email": email}
+    data: dict[str, str] = {"jobid": jobid, "email": email, "filename": filename}
     resp: Response = requests.post(f"{AUTH_URL}/transcriptions/add", json=data)
     try:
         resp.raise_for_status()
@@ -98,7 +98,9 @@ async def upload(request: Request, file: UploadFile = File(...), jobid: str = Fo
     if jobid is None: jobid = "you did not provide a jobid"
 
     asyncio.create_task(_process_queue())
-    if jwt_email: _post_jobid_to_auth(jobid, jwt_email)
+    # print filename
+    # print(f"{FORMAT}received file '{file.filename}' with jobid '{jobid}'{RESET}")
+    if jwt_email: _post_jobid_to_auth(jobid, jwt_email, file.filename)
     return {"jobid": jobid, "status": "completed"}
 
 @app.post("/status")
