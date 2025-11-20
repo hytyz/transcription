@@ -47,6 +47,17 @@ async function loadTranscriptions() {
         const data = await res.json();
 
         allTranscriptions = data.transcriptions || [];
+
+        if (allTranscriptions.length === 0) {
+            container.innerHTML = "";
+            const anchor = document.createElement("a");
+            anchor.textContent = "no transcriptions found. click here to upload.";
+            anchor.href = "/index.html";
+            anchor.style.textAlign = "center";
+            container.appendChild(anchor);
+            return;
+        }
+
         nextIndex = 0;
 
         container.innerHTML = "";
