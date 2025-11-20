@@ -127,6 +127,22 @@ const app = Bun.serve({
             return json({ status: "ok", jobid, key, message: "updated in place" });
         }
 
+
+		// DELETE /transcriptions/:jobid — delete transcription file
+		const dMatch = pathname.match(/^\/transcriptions\/(.+)$/);
+		if (req.method === "DELETE" && dMatch) {
+			const jobid = dMatch[1];
+			const Key = `transcriptions/${jobid}.txt`;
+
+			try {
+				await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key }));
+				return json({ status: "ok", message: "file deleted successfully" });
+			} catch {
+				return json({ status: "error", message: "file not found" }, 404);
+			}
+			// return json({ status: "error", message: "file not found" }, 404);
+		}
+
         // GET /transcriptions/:jobid — 
         const tMatch = pathname.match(/^\/transcriptions\/(.+)$/);
         if (req.method === "GET" && tMatch) {
