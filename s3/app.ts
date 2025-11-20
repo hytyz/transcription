@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 
-//config 
+//configure S3 client
 const s3 = new S3Client({
     region: process.env.AWS_REGION!,
     endpoint: process.env.AWS_ENDPOINT_URL!,
@@ -13,7 +13,6 @@ const s3 = new S3Client({
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
     },
 });
-
 
 const BUCKET = process.env.BUCKET_NAME!;
 
