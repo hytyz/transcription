@@ -12,12 +12,30 @@ document.addEventListener("DOMContentLoaded", () => {
                 window.location.href = "/login";
                 return;
             }
-
             setupNavbar();
-            await loadTranscriptions();
+            loadTranscriptions();
+            showUsageInHeader();
+
         })
         .catch(() => window.location.href = "/login");
 });
+
+async function showUsageInHeader() {
+    try {
+        const res = await fetch(`${AUTH_URL}/myusage/`, {
+            credentials: "include"
+        });
+        const data = await res.json();
+
+        if (data.usage !== undefined) {
+            document.getElementsByClassName("dashboard-title")[0].insertAdjacentHTML("beforeend", ` - ${data.usage} api calls used`);
+        }
+    } catch (e) {
+        console.error("Failed to load usage", e);
+    }
+}
+
+
 
 function setupNavbar() {
     const a1 = document.getElementById("navbar-anchor1");
@@ -89,7 +107,7 @@ async function renderNextPage() {
 async function createCardFromTemplate(jobid, createdAt) {
     const templateHtml = await fetch("file.html").then(r => r.text());
 
-    // Convert HTML string 
+    // create element from template
     const temp = document.createElement("div");
     temp.innerHTML = templateHtml.trim();
     const card = temp.firstElementChild;
@@ -101,11 +119,11 @@ async function createCardFromTemplate(jobid, createdAt) {
     const expandBtn = card.querySelector(".file-card-expand");
     const bodyEl = card.querySelector(".file-card-body");
 
-    // Fill in metadata
+    // fill in metadata into cards
     nameEl.textContent = jobid;
     dateEl.textContent = new Date(createdAt).toLocaleString();
 
-    // Fetch transcript text
+    // get transcript text
     let fullText = "";
     try {
         const res = await fetch(`${BASE_URL}/s3/transcriptions/${jobid}`);
@@ -121,7 +139,7 @@ async function createCardFromTemplate(jobid, createdAt) {
 
     snippetEl.textContent = snippetPreview;
 
-    // Expand/collapse behavior 
+    // collapse behavior 
     expandBtn.addEventListener("click", () => {
         const expanded = bodyEl.classList.toggle("expanded");
 
