@@ -281,6 +281,20 @@ app.get('/usage', (req, res) => {
     });
 });
 
+app.get('/myusage', (req, res) => {
+    const token = req.cookies.token || req.header('authorization')?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'no token' });
+    const validity = verifyJwt(token);
+    if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
+    const email = validity.payload.email;
+
+    db.get('SELECT api_usage FROM users WHERE email = ?', [email], (err, row) => {
+        if (err) return res.status(500).json({ error: 'db error' });
+        if (!row) return res.status(404).json({ error: 'user not found' });
+        return res.json({ email, usage: row.api_usage });
+    });
+});
+
 app.post('/transcriptions/add', (req, res) => {
     const { email, jobid } = req.body || {};
     if (!email || !jobid) {
