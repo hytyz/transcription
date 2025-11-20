@@ -41,7 +41,8 @@ async function loadTranscriptions() {
     const container = document.getElementById("dashboard-files");
     if (!container) return;
 
-    container.innerHTML = `<div class="loader"></div>`;
+
+    await new Promise(resolve => setTimeout(resolve, 5000)); // for testing loader
 
     try {
         const res = await fetch(`${AUTH_URL}/transcriptions/`, {
@@ -76,7 +77,7 @@ async function renderNextPage() {
     if (oldBtn) oldBtn.remove();
 
     if (nextIndex < allTranscriptions.length) {
-        const btn = document.createElement("button");
+        const btn = document.createElement("a");
         btn.id = "load-more-btn";
         btn.textContent = "Load more";
         btn.className = "load-more-btn";
