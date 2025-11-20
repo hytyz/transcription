@@ -99,14 +99,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       setTranscriptionStatus(msg.status + "...");
 
-
-      if (msg.status === "queued") {
-        console.log("Queued…");
-      }
-      if (msg.status === "processing") {
-        console.log("Transcribing…");
-      }
-
       if (msg.status === "completed") {
         ws.close();
         fetchTranscription();
