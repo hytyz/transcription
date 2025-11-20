@@ -215,6 +215,16 @@ app.post('/increment', (req, res) => {
 });
 
 app.get('/usage', (req, res) => {
+    const token = req.cookies.token || req.header('authorization')?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'no token' });
+    const validity = verifyJwt(token);
+    if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
+    
+    // check if user is admin@admin.com
+    if (validity.payload.email !== 'admin@admin.com') {
+        return res.status(403).json({ error: 'forbidden' });
+    }
+    
     db.all('SELECT email, api_usage FROM users ORDER BY email', [], (err, rows) => {
         if (err) return res.status(500).json({ error: 'db error' });
         return res.json({ users: rows });
