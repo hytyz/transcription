@@ -96,8 +96,8 @@ document.addEventListener("DOMContentLoaded", () => {
       // console.log(await res.text());
       // const json = await res.json();
       let text = await res.text();
-      console.log("transcription text:");
-      console.log(text);
+      // console.log("transcription text:");
+      // console.log(text);
       text = text.replace(/\\n/g, "\n");
 
       sessionStorage.setItem("transcriptionText", text);
