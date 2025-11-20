@@ -42,7 +42,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     const cardHtml = await resp.text();
     root.innerHTML = cardHtml;
 
-    const text = sessionStorage.getItem("transcriptionText") || "";
+    const text = sessionStorage.getItem("transcriptionText") 
+
+    if (!text) {
+        window.location.href = "/index.html";
+        return;
+    }
+
     const originalFilename = sessionStorage.getItem("transcriptionFilename") || "file";
 
     const baseFilename = originalFilename.replace(/^.*[\\/]/, "");
