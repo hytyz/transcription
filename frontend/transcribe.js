@@ -66,7 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function startTranscription(file) {
       // Convert before uploading
-    console.log("Converting to WAV...");
+    // console.log("Converting to WAV...");
     // const wavFile = await convertToWav(file);
     const formData = new FormData();
     formData.append("jobid", String(crypto.randomUUID())); 
