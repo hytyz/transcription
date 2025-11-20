@@ -53,7 +53,6 @@ def _post_audio_to_s3(jobid: str, audio_bytes: bytes, filename: str | None) -> N
 
 def _post_transcription_to_s3(jobid: str, transcript_bytes: bytes) -> None:
     """posts a transcription blob and its job id to the s3 /transcriptions endpoint"""
-    broadcast(jobid, {"status": "uploading"})
 
     files: dict[str, tuple[str, bytes, str]] = {
         "file": ("transcription.txt", transcript_bytes, "text/plain")
@@ -69,6 +68,7 @@ async def broadcast(jobid: str, message: dict):
     print(f"WS BROADCAST → {jobid} → {message}")  # <— DEBUG
     if jobid not in connections:
         print("NO CONNECTION FOR JOBID!")  # <— DEBUG
+        print(f"connections keys: {connections}")  # <— DEBUG
         return
     dead = []
     for ws in connections[jobid]:
@@ -88,11 +88,11 @@ async def _process_queue() -> None:
     while queue:
         jobid, audio_bytes = queue[0]
         currently_processing = True
-        await broadcast(jobid, {"status": "processing"})
+        await broadcast(jobid, {"status": "converting"})
         # await asyncio.sleep(0)     # <<< yield control to event loop 
         try: 
             audio_bytes = await asyncio.to_thread(convert_to_wav, audio_bytes)
-
+            await broadcast(jobid, {"status": "transcribing"})
             transcript_bytes: bytes = await asyncio.to_thread(
                 generate_diarized_transcript,
                 audio_bytes=audio_bytes,
@@ -104,6 +104,7 @@ async def _process_queue() -> None:
             currently_processing = False
             queue.pop(0)
 
+        await broadcast(jobid, {"status": "uploading"})
         _post_transcription_to_s3(jobid, transcript_bytes)
         # notify websocket client that we are finished
         await broadcast(jobid, {"status": "completed"})
@@ -169,21 +170,35 @@ async def get_status(jobid: str) -> dict[str, str]:
 async def websocket_status(ws: WebSocket):
     """websocket endpoint for real-time transcription status updates"""
     global connections
+    global queue
+    global currently_processing
     await ws.accept()
     try:
         # First message from client MUST be: {"jobid": "..."}
         init = await ws.receive_json()
+        print(f"WS INIT → {init}")  # <— DEBUG
         jobid = init.get("jobid")
+        
         if not jobid:
             await ws.close(code=4000)
             return
 
-        # ws.send_json({"status": "processing"})
+        await ws.send_json({"status": "connected"})
+
+        if currently_processing and queue and queue[0][0] == jobid:
+            await ws.send_json({"status": "processing"})
+        elif any(queued_jobid == jobid for queued_jobid, _ in queue):
+            await ws.send_json({"status": "queued"})
+        else:
+            await ws.send_json({"status": "not found"})
 
         if jobid not in connections:
             connections[jobid] = []
         connections[jobid].append(ws)
 
+        print("CURRENT CONNECTIONS:")
+        print(connections)
+        
         # Keep the socket alive
         while True:
             await ws.receive_text()  # not used
