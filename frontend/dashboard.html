@@ -13,7 +13,22 @@
     <main class="container dashboard-container">
         <h1 class="dashboard-title">view files</h1>
 
-        <section id="dashboard-files" class="files-list"></section>
+        <!-- <section id="dashboard-files" class="files-list">
+                      <progress id="progress-bar"></progress>
+        </section> -->
+
+    <section id="dashboard-files" class="upload-card files-list" >
+      <div class="upload-card-inner">
+        <div class="upload-card-header">
+          <!-- <span id="upload-filename">Filename</span> -->
+        </div>
+        <div class="upload-card-body">
+          <!-- <span id="upload-file-size">0 MB</span> -->
+          <progress id="progress-bar"></progress>
+        </div>
+      </div>
+    </section>
+        
     </main>
 
     <script src="navbar.js"></script>

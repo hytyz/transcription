@@ -314,3 +314,9 @@ a:focus-visible, button:focus-visible {
 #usage-table thead th {
     border-bottom: var(--border-width-thick) solid var(--black);
 }
+
+.load-more-btn {
+    justify-content: center;
+    text-align: center;
+    cursor: pointer;
+}
