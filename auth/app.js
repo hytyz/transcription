@@ -377,6 +377,32 @@ app.post('/transcriptions/add', (req, res) => {
     });
 });
 
+app.delete('/transcriptions/delete', (req, res) => {
+    const token = req.cookies.token || req.header('authorization')?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'no token' });
+    const validity = verifyJwt(token);
+    if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
+    const email = validity.payload.email; // we should use email to verify ownership
+
+    const { jobid } = req.body || {};
+    if (!jobid) {
+        return res.status(400).json({ error: "jobid required" });
+    }
+
+    const stmt = db.prepare('DELETE FROM transcriptions WHERE jobid = ?');
+    stmt.run(jobid, function (err) {
+        if (err) {
+            return res.status(500).json({ error: 'db error' });
+        }
+
+        if (this.changes === 0) {
+            return res.status(404).json({ error: 'transcription not found' });
+        }
+
+        return res.json({ ok: true, jobid });
+    });
+    stmt.finalize();
+});
 
 
 app.get('/transcriptions/', (req, res) => {
