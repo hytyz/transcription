@@ -176,26 +176,60 @@ app.use((req, res, next) => {
 //     next();
 // }
 
+// app.post('/create', async (req, res) => {
+//     const { email, password } = req.body || {};
+//     if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+
+//     const salt = genSalt();
+//     let password_hash;
+//     try { password_hash = await hashPassword(password, salt); } catch (err) {
+//         return res.status(500).json({ error: 'hashing failure' });
+//     }
+
+//     const stmt = db.prepare('INSERT INTO users(email, password_hash, salt, api_usage) VALUES(?,?,?,0)');
+//     stmt.run(email, password_hash, salt, function (err) {
+//         if (err) {
+//             if (err.message && err.message.includes('UNIQUE')) { return res.status(409).json({ error: 'user already exists' }); }
+//             return res.status(500).json({ error: 'db error', details: err.message });
+//         }
+//         return res.status(201).json({ ok: true, email });
+//     });
+//     stmt.finalize();
+// });
+
 app.post('/create', async (req, res) => {
     const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+    if (!email || !password) {return res.status(400).json({ error: 'email and password required' });}
 
     const salt = genSalt();
     let password_hash;
-    try { password_hash = await hashPassword(password, salt); } catch (err) {
-        return res.status(500).json({ error: 'hashing failure' });
-    }
-
-    const stmt = db.prepare('INSERT INTO users(email, password_hash, salt, api_usage) VALUES(?,?,?,0)');
+    try {password_hash = await hashPassword(password, salt);} 
+    catch (err) {return res.status(500).json({ error: 'hashing failure' });}
+    const stmt = db.prepare(
+        'INSERT INTO users(email, password_hash, salt, api_usage) VALUES(?,?,?,0)'
+    );
     stmt.run(email, password_hash, salt, function (err) {
         if (err) {
-            if (err.message && err.message.includes('UNIQUE')) { return res.status(409).json({ error: 'user already exists' }); }
+            if (err.message && err.message.includes('UNIQUE')) {return res.status(409).json({ error: 'user already exists' });}
             return res.status(500).json({ error: 'db error', details: err.message });
         }
-        return res.status(201).json({ ok: true, email });
+        // ---- AUTO LOGIN HERE ----
+        const token = signJwt({ email }, { expSeconds: JWT_EXP_SECONDS });
+
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.COOKIE_SECURE === 'true',
+            sameSite: 'none',
+            maxAge: JWT_EXP_SECONDS * 1000,
+            path: '/'
+        });
+        // return res.status(200).json({ ok: true, email, autoLogin: true });
+        return res.json({ ok: true });
+
     });
     stmt.finalize();
 });
+
 
 app.post('/login', async (req, res) => {
     if (!req.is('application/json')) {
