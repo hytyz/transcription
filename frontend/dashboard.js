@@ -96,7 +96,7 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
     const bodyEl = card.querySelector(".file-card-body");
 
     nameEl.textContent = filename;
-    dateEl.textContent = new Date(createdAt*1000).toLocaleString();
+    dateEl.textContent = new Date(createdAt * 1000).toLocaleString();
 
     let fullText = "";
     try {
@@ -124,16 +124,16 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
     });
 
     card.dataset.fullText = fullText;
-    card.dataset.downloadName = formatToYYYYMMDD(new Date(createdAt*1000)) + "_" + filename;
+    card.dataset.downloadName = formatToYYYYMMDD(new Date(createdAt * 1000)) + "_" + filename;
 
     return card;
 }
 
 function formatToYYYYMMDD(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0'); // months are zero indexed because javascript is the best language ever
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}${month}${day}`;
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // months are zero indexed because javascript is the best language ever
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}${month}${day}`;
 }
 
 function downloadText(text, filename) {
