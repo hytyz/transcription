@@ -14,14 +14,9 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             // setupNavbar();
             loadTranscriptions();
-
-
         })
         .catch(() => window.location.href = "/login");
 });
-
-
-
 
 function setupNavbar() {
     const a1 = document.getElementById("navbar-anchor1");
@@ -44,9 +39,6 @@ function setupNavbar() {
 async function loadTranscriptions() {
     const container = document.getElementById("dashboard-files");
     if (!container) return;
-
-
-    // await new Promise(resolve => setTimeout(resolve, 5000)); // for testing loader
 
     try {
         const res = await fetch(`${AUTH_URL}/transcriptions/`, {
@@ -93,11 +85,9 @@ async function renderNextPage() {
 async function createCardFromTemplate(jobid, createdAt, filename) {
     const templateHtml = await fetch("file.html").then(r => r.text());
 
-    // create element from template
     const temp = document.createElement("div");
     temp.innerHTML = templateHtml.trim();
     const card = temp.firstElementChild;
-
 
     const nameEl = card.querySelector("#file-card-name");
     const dateEl = card.querySelector(".file-card-date");
@@ -105,12 +95,9 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
     const expandBtn = card.querySelector(".file-card-expand");
     const bodyEl = card.querySelector(".file-card-body");
 
-    // fill in metadata into cards
     nameEl.textContent = filename;
-    // console.log(createdAt);
-    dateEl.textContent = new Date(createdAt*1000).toLocaleString(); // createdAt we use unix timestamp in seconds, convert to ms for js Date
+    dateEl.textContent = new Date(createdAt*1000).toLocaleString();
 
-    // get transcript text
     let fullText = "";
     try {
         const res = await fetch(`${BASE_URL}/s3/transcriptions/${jobid}`);
@@ -119,14 +106,11 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
         fullText = "(error fetching file)";
     }
 
-
     const snippetPreview =
         fullText.length > 500 ? fullText.slice(0, 500) + "…" : fullText;
 
-
     snippetEl.textContent = snippetPreview;
 
-    // collapse behavior 
     expandBtn.addEventListener("click", () => {
         const expanded = bodyEl.classList.toggle("expanded");
 
@@ -139,6 +123,41 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
         }
     });
 
+    card.dataset.fullText = fullText;
+    card.dataset.downloadName = formatToYYYYMMDD(new Date(createdAt*1000)) + "_" + filename;
+
     return card;
 }
 
+function formatToYYYYMMDD(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // months are zero indexed because javascript is the best language ever
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}${month}${day}`;
+}
+
+function downloadText(text, filename) {
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+
+    filename = filename.replace(/\./g, "");
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${filename}.txt`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+}
+
+document.addEventListener("click", (e) => {
+    if (e.target.closest(".download-button")) {
+        const card = e.target.closest(".file-card");
+        if (!card) return;
+
+        const text = card.dataset.fullText || "";
+        const filename = card.dataset.downloadName || "transcript";
+
+        downloadText(text, filename);
+    }
+});
