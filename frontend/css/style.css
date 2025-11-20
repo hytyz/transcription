@@ -283,3 +283,34 @@ a:focus-visible, button:focus-visible {
     height: var(--space-md);
     display: block;
 }
+
+#usage-table {
+    border-collapse: collapse;
+    width: 100%;
+    max-width: 30rem;
+    margin-top: var(--space-xl);
+    background-color: var(--white);
+    border: var(--border-width-thick) solid var(--black);
+
+}
+
+#usage-table thead {
+    background-color: var(--grey);
+}
+
+#usage-table th,
+#usage-table td {
+    padding: var(--space-xs) var(--space-sm);
+    text-align: left;
+    font-size: var(--font-size);
+    font-weight: 400;
+    border: 0;
+}
+
+#usage-table > tbody > tr:first-child > td {
+    padding-top: var(--space-sm);
+}
+
+#usage-table thead th {
+    border-bottom: var(--border-width-thick) solid var(--black);
+}
