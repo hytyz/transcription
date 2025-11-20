@@ -28,7 +28,8 @@ async function showUsageInHeader() {
         const data = await res.json();
 
         if (data.usage !== undefined) {
-            document.getElementsByClassName("dashboard-title")[0].insertAdjacentHTML("beforeend", ` - ${data.usage} api calls used`);
+            const usageWarning = data.usage > 20 ? " (high usage)" : "";
+            document.getElementsByClassName("dashboard-title")[0].insertAdjacentHTML("beforeend", ` - ${data.usage} api calls used${usageWarning}`);
         }
     } catch (e) {
         console.error("Failed to load usage", e);
