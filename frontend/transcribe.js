@@ -97,7 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const msg = JSON.parse(event.data);
       console.log("WS status:", msg);
 
-      setTranscriptionStatus(msg.status);
+      setTranscriptionStatus(msg.status + "...");
 
 
       if (msg.status === "queued") {
@@ -123,7 +123,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
 async function setTranscriptionStatus(status) {
-    document.getElementById("transcription-status").textContent = status;
+    document.getElementById("progress-status").textContent = status;
 }
 
   async function fetchTranscription() {
