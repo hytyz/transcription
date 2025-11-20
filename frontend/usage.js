@@ -2,33 +2,43 @@
 var BASE_URL = "https://polina-gateway.fly.dev"; // gateway base URL
 var AUTH_URL = `${BASE_URL}/auth`;
 
-async function getUsage() {
-    const res = await fetch(`${AUTH_URL}/usage`, {credentials: 'include',});
-    return res.json();
+
+
+async function getUsageForCurrentUser() {
+    try {
+        const res = await fetch(`${AUTH_URL}/myusage/`, {
+            credentials: "include"
+        });
+        if (res.status !== 200) {window.location.href = "/login"; return;}
+
+        return data = await res.json();
+        
+    } catch (e) {
+        console.error("Failed to load usage", e);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+
     const usageTable = document.getElementById('usage-table');
+    // const usageSummary = document.getElementById('usage-summary');
     const msg = document.getElementById('msg');
 
-    
+    getUsageForCurrentUser().then((res) => {
+        document.getElementById('total-api-calls').textContent = res.usage
+        document.getElementById('user-email').textContent = res.email
+    });
 
-    getUsage()
-        .then((data) => {
-            if (data.error) {
-                if (msg) { msg.textContent = data.error; }
-                console.log(data.error);
+
+    fetch(`${AUTH_URL}/usage`, { credentials: 'include', })
+        .then(async (res) => {
+             if (res.status !== 200) {
+                usageTable.style.display = 'none';    
+                console.log('user is not admin');
                 return;
             }
-
-            if (!usageTable) {
-                if (msg) {
-                    msg.textContent = 'failed to load usage: missing usage table element';
-                }
-                console.log('usage table element not found');
-                return;
-            }
-
+            const data = await res.json();
+           
             const tbody = usageTable.querySelector('tbody');
             if (!tbody) {
                 if (msg) {
@@ -49,19 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (msg) msg.textContent = '';
         })
-        .then(() => {
-            const anchor1 = document.getElementById("navbar-anchor1");
-            const anchor2 = document.getElementById("navbar-anchor2");
-            anchor1.textContent = "view files";
-            anchor1.href = "/dashboard";
-            anchor2.textContent = "log out";
-            anchor2.href = "/";
-            anchor2.addEventListener("click", async (e) => {
-                e.preventDefault();
-                await fetch(`${AUTH_URL}/logout`, { method: "POST", credentials: "include" });
-                window.location.href = "/";
-            });
-        })
         .catch((err) => {
             if (msg) {
                 msg.textContent = 'failed to load usage: ' + err.message;
@@ -71,3 +68,16 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
+function setupNavbar() {
+    const anchor1 = document.getElementById("navbar-anchor1");
+    const anchor2 = document.getElementById("navbar-anchor2");
+    anchor1.textContent = "view files";
+    anchor1.href = "/dashboard";
+    anchor2.textContent = "log out";
+    anchor2.href = "/";
+    anchor2.addEventListener("click", async (e) => {
+        e.preventDefault();
+        await fetch(`${AUTH_URL}/logout`, { method: "POST", credentials: "include" });
+        window.location.href = "/";
+    });
+}
