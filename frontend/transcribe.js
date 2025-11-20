@@ -1,20 +1,20 @@
-let ffmpeg;
-let ffmpegReady = false;
+// let ffmpeg;
+// let ffmpegReady = false;
 
-async function loadFFmpeg() {
-  const { createFFmpeg, fetchFile } = FFmpeg; // global if using CDN
+// async function loadFFmpeg() {
+//   const { createFFmpeg, fetchFile } = FFmpeg; // global if using CDN
 
-  ffmpeg = createFFmpeg({
-    log: true, // or false
-  });
+//   ffmpeg = createFFmpeg({
+//     log: true, // or false
+//   });
 
-  if (!ffmpegReady) {
-    await ffmpeg.load();
-    ffmpegReady = true;
-  }
+//   if (!ffmpegReady) {
+//     await ffmpeg.load();
+//     ffmpegReady = true;
+//   }
 
-  return { fetchFile };
-}
+//   return { fetchFile };
+// }
 
 async function convertToWav(inputFile) {
   const { fetchFile } = await loadFFmpeg();
@@ -67,10 +67,10 @@ document.addEventListener("DOMContentLoaded", () => {
   async function startTranscription(file) {
       // Convert before uploading
     console.log("Converting to WAV...");
-    const wavFile = await convertToWav(file);
+    // const wavFile = await convertToWav(file);
     const formData = new FormData();
     formData.append("jobid", String(crypto.randomUUID())); 
-    formData.append("file", wavFile);
+    formData.append("file", file);
     // formData.append("model", "medium");
     // formData.append("out_format", "txt");
 
@@ -85,7 +85,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const sizeMB = file.size / (1024 * 1024);
       fileSizeLabel.textContent = `${sizeMB.toFixed(1)} MB`;
 
-      const res = await fetch(`${gpuURL}/upload`, { method: "POST", body: formData });
+      const res = await fetch(`${gpuURL}/upload`, { method: "POST", body: formData, credentials: "include" });
 
       if (!res.ok) {
         alert("error starting transcription.");
