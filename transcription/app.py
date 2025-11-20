@@ -65,16 +65,13 @@ def _post_transcription_to_s3(jobid: str, transcript_bytes: bytes) -> None:
 async def broadcast(jobid: str, message: dict):
     """send message to all websocket clients listening for any given jobid"""
     global connections
-    print(f"WS BROADCAST → {jobid} → {message}")  # <— DEBUG
+    # print(f"WS BROADCAST → {jobid} → {message}")  # debug
     if jobid not in connections:
-        print("NO CONNECTION FOR JOBID!")  # <— DEBUG
-        print(f"connections keys: {connections}")  # <— DEBUG
         return
     dead = []
     for ws in connections[jobid]:
         try:
             await ws.send_json(message)
-            print(f"sent to ws for jobid {jobid}: {message}")
         except Exception:
             dead.append(ws)
     # cleanup dead sockets
@@ -106,7 +103,6 @@ async def _process_queue() -> None:
 
         await broadcast(jobid, {"status": "uploading"})
         _post_transcription_to_s3(jobid, transcript_bytes)
-        # notify websocket client that we are finished
         await broadcast(jobid, {"status": "completed"})
 
 def _post_jobid_to_auth(jobid: str, email: str, filename: str) -> None:
@@ -135,7 +131,6 @@ async def upload(request: Request, file: UploadFile = File(...), jobid: str = Fo
     token = request.cookies.get("token")
     jwt_email: str | None = None
     if token: jwt_email = _decode_jwt_email(token)
-
     
     audio_bytes: bytes = await file.read()
 
@@ -146,9 +141,7 @@ async def upload(request: Request, file: UploadFile = File(...), jobid: str = Fo
         return {"jobid": jobid, "status": "queued"}
     
     if jobid is None: jobid = "you did not provide a jobid"
-
     asyncio.create_task(_process_queue())
-    # print filename
     # print(f"{FORMAT}received file '{file.filename}' with jobid '{jobid}'{RESET}")
     if jwt_email: _post_jobid_to_auth(jobid, jwt_email, file.filename)
     return {"jobid": jobid, "status": "completed"}
@@ -176,7 +169,7 @@ async def websocket_status(ws: WebSocket):
     try:
         # First message from client MUST be: {"jobid": "..."}
         init = await ws.receive_json()
-        print(f"WS INIT → {init}")  # <— DEBUG
+        # print(f"WS INIT → {init}")  # debug
         jobid = init.get("jobid")
         
         if not jobid:
@@ -195,10 +188,8 @@ async def websocket_status(ws: WebSocket):
         if jobid not in connections:
             connections[jobid] = []
         connections[jobid].append(ws)
+        # print(connections)
 
-        print("CURRENT CONNECTIONS:")
-        print(connections)
-        
         # Keep the socket alive
         while True:
             await ws.receive_text()  # not used
