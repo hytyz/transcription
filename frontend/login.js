@@ -14,7 +14,17 @@ async function loginUser(email, password) {
     return res.json();
 }
 
+checkAuth()
+    .then(async (result) => {
+        if (!result || result.error) {
+            // pass     
+        } else window.location.href = 'dashboard.html';
+    })
+    .catch(() => window.location.href = "/login");
+
+
 document.addEventListener('DOMContentLoaded', () => {
+
     // const msg = document.getElementById('msg');
     // console.log("inside event listener");
     document.getElementById('auth-form').addEventListener('submit', async (e) => {
@@ -27,5 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.ok) window.location.href = 'dashboard.html';
         else console.log(result.error);
     });
+
+
 });
 
