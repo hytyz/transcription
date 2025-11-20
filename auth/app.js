@@ -330,8 +330,12 @@ app.post('/transcriptions/add', (req, res) => {
 
 
 
-app.get('/transcriptions/:email', (req, res) => {
-    const email = req.params.email;
+app.get('/transcriptions/', (req, res) => {
+    const token = req.cookies.token || req.header('authorization')?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'no token' });
+    const validity = verifyJwt(token);
+    if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
+    const email = validity.payload.email;
 
     db.all(
         'SELECT jobid, created_at FROM transcriptions WHERE email = ? ORDER BY created_at DESC',
