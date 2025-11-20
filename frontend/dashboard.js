@@ -42,7 +42,7 @@ async function loadTranscriptions() {
     if (!container) return;
 
 
-    await new Promise(resolve => setTimeout(resolve, 5000)); // for testing loader
+    // await new Promise(resolve => setTimeout(resolve, 5000)); // for testing loader
 
     try {
         const res = await fetch(`${AUTH_URL}/transcriptions/`, {
