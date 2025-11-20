@@ -107,7 +107,8 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
 
     // fill in metadata into cards
     nameEl.textContent = filename;
-    dateEl.textContent = new Date(createdAt).toLocaleString();
+    // console.log(createdAt);
+    dateEl.textContent = new Date(createdAt*1000).toLocaleString(); // createdAt we use unix timestamp in seconds, convert to ms for js Date
 
     // get transcript text
     let fullText = "";
