@@ -1,7 +1,7 @@
 import requests; from requests import Response
 from transcription import generate_diarized_transcript
 from dotenv import load_dotenv; from fastapi import FastAPI
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, WebSocket, WebSocketDisconnect
 from requests.exceptions import HTTPError
 import asyncio
 import os
@@ -19,6 +19,7 @@ app = FastAPI()
 queue: list[tuple[str, bytes]] = []
 S3_BUCKET: str = "https://s3-aged-water-5651.fly.dev"
 currently_processing: bool = False
+connections: dict[str, list[WebSocket]] = {}
 
 def convert_to_wav(audio_bytes: bytes) -> bytes:
     """Convert any audio format to mono wav begdrugingly using subprocess and ffmpeg."""
@@ -52,13 +53,33 @@ def _post_audio_to_s3(jobid: str, audio_bytes: bytes, filename: str | None) -> N
 
 def _post_transcription_to_s3(jobid: str, transcript_bytes: bytes) -> None:
     """posts a transcription blob and its job id to the s3 /transcriptions endpoint"""
-        
+    broadcast(jobid, {"status": "uploading"})
+
     files: dict[str, tuple[str, bytes, str]] = {
         "file": ("transcription.txt", transcript_bytes, "text/plain")
     }
     data: dict[str, str] = {"jobid": jobid}
     resp: Response = requests.post(f"{S3_BUCKET}/transcriptions", files=files, data=data)
     resp.raise_for_status()
+
+# i say all 
+async def broadcast(jobid: str, message: dict):
+    """send message to all websocket clients listening for any given jobid"""
+    global connections
+    print(f"WS BROADCAST → {jobid} → {message}")  # <— DEBUG
+    if jobid not in connections:
+        print("NO CONNECTION FOR JOBID!")  # <— DEBUG
+        return
+    dead = []
+    for ws in connections[jobid]:
+        try:
+            await ws.send_json(message)
+            print(f"sent to ws for jobid {jobid}: {message}")
+        except Exception:
+            dead.append(ws)
+    # cleanup dead sockets
+    for ws in dead:
+        connections[jobid].remove(ws)
 
 async def _process_queue() -> None:
     """process all jobs that are in queue"""
@@ -67,6 +88,8 @@ async def _process_queue() -> None:
     while queue:
         jobid, audio_bytes = queue[0]
         currently_processing = True
+        await broadcast(jobid, {"status": "processing"})
+        # await asyncio.sleep(0)     # <<< yield control to event loop 
         try: 
             audio_bytes = await asyncio.to_thread(convert_to_wav, audio_bytes)
 
@@ -82,6 +105,8 @@ async def _process_queue() -> None:
             queue.pop(0)
 
         _post_transcription_to_s3(jobid, transcript_bytes)
+        # notify websocket client that we are finished
+        await broadcast(jobid, {"status": "completed"})
 
 def _post_jobid_to_auth(jobid: str, email: str, filename: str) -> None:
     """posts a transcription job id and user email to the auth api"""
@@ -127,6 +152,8 @@ async def upload(request: Request, file: UploadFile = File(...), jobid: str = Fo
     if jwt_email: _post_jobid_to_auth(jobid, jwt_email, file.filename)
     return {"jobid": jobid, "status": "completed"}
 
+
+# TODO: DEPRECATE THIS ENDPOINT IN FAVOR OF WEBSOCKET 
 @app.post("/status")
 async def get_status(jobid: str) -> dict[str, str]:
     """status endpoint"""
@@ -136,3 +163,33 @@ async def get_status(jobid: str) -> dict[str, str]:
 
     if jobids[0] == jobid: return {"jobid": jobid, "status": "transcribing"}
     return {"jobid": jobid, "status": "queued"}
+
+
+@app.websocket("/ws/status")
+async def websocket_status(ws: WebSocket):
+    """websocket endpoint for real-time transcription status updates"""
+    global connections
+    await ws.accept()
+    try:
+        # First message from client MUST be: {"jobid": "..."}
+        init = await ws.receive_json()
+        jobid = init.get("jobid")
+        if not jobid:
+            await ws.close(code=4000)
+            return
+
+        # ws.send_json({"status": "processing"})
+
+        if jobid not in connections:
+            connections[jobid] = []
+        connections[jobid].append(ws)
+
+        # Keep the socket alive
+        while True:
+            await ws.receive_text()  # not used
+    except WebSocketDisconnect:
+        # cleanup
+        for job, socket_list in connections.items():
+            if ws in socket_list:
+                socket_list.remove(ws)
+        return
