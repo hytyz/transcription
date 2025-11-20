@@ -70,6 +70,7 @@ db.serialize(() => {
         jobid TEXT PRIMARY KEY,
         email TEXT NOT NULL,
         created_at INTEGER NOT NULL,
+        filename TEXT,
         FOREIGN KEY(email) REFERENCES users(email) ON DELETE CASCADE
     );`);
 
@@ -296,9 +297,9 @@ app.get('/myusage', (req, res) => {
 });
 
 app.post('/transcriptions/add', (req, res) => {
-    const { email, jobid } = req.body || {};
-    if (!email || !jobid) {
-        return res.status(400).json({ error: "email and jobid required" });
+    const { email, jobid, filename } = req.body || {};
+    if (!email || !jobid || !filename) {
+        return res.status(400).json({ error: "email, jobid, and filename required" });
     }
 
     const createdAt = Math.floor(Date.now() / 1000);
@@ -306,9 +307,9 @@ app.post('/transcriptions/add', (req, res) => {
     db.serialize(() => {
         //insert transcription record
         const stmt1 = db.prepare(
-            'INSERT INTO transcriptions(jobid, email, created_at) VALUES(?,?,?)'
+            'INSERT INTO transcriptions(jobid, email, created_at, filename) VALUES(?,?,?,?)'
         );
-        stmt1.run(jobid, email, createdAt, function (err) {
+        stmt1.run(jobid, email, createdAt, filename, function (err) {
             if (err) {
                 if (err.message.includes('UNIQUE')) {
                     return res.status(409).json({ error: 'jobid already exists' });
@@ -352,7 +353,7 @@ app.get('/transcriptions/', (req, res) => {
     const email = validity.payload.email;
 
     db.all(
-        'SELECT jobid, created_at FROM transcriptions WHERE email = ? ORDER BY created_at DESC',
+        'SELECT jobid, created_at, filename FROM transcriptions WHERE email = ? ORDER BY created_at DESC',
         [email],
         (err, rows) => {
             if (err) return res.status(500).json({ error: 'db error' });
