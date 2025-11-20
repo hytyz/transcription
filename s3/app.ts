@@ -2,15 +2,18 @@ import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } fro
 import dotenv from "dotenv";
 dotenv.config();
 
-const S3Client = new S3Client({
-    region: "us-east-1",
-    endpoint: "https://s3.amazonaws.com",
+
+//config 
+const s3 = new S3Client({
+    region: process.env.AWS_REGION!,
+    endpoint: process.env.AWS_ENDPOINT_URL!,
     forcePathStyle: false,
     credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
     },
 });
+
 
 const BUCKET = process.env.BUCKET_NAME!;
 
