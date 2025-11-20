@@ -1,46 +1,3 @@
-// let ffmpeg;
-// let ffmpegReady = false;
-
-// async function loadFFmpeg() {
-//   const { createFFmpeg, fetchFile } = FFmpeg; // global if using CDN
-
-//   ffmpeg = createFFmpeg({
-//     log: true, // or false
-//   });
-
-//   if (!ffmpegReady) {
-//     await ffmpeg.load();
-//     ffmpegReady = true;
-//   }
-
-//   return { fetchFile };
-// }
-
-async function convertToWav(inputFile) {
-  const { fetchFile } = await loadFFmpeg();
-
-  const inputName = inputFile.name;
-  const outputName = "output.wav";
-
-  // Write original file into ffmpeg FS
-  ffmpeg.FS("writeFile", inputName, await fetchFile(inputFile));
-
-  // Run ffmpeg command
-  await ffmpeg.run(
-    "-i", inputName,
-    "-ac", "1",
-    "-ar", "16000",
-    outputName
-  );
-
-  // Read back the WAV bytes
-  const data = ffmpeg.FS("readFile", outputName);
-
-  // Convert Uint8Array → Blob → File
-  return new File([data.buffer], outputName, { type: "audio/wav" });
-}
-
-
 document.addEventListener("DOMContentLoaded", () => {
   const api_url = `${BASE_URL}/api`;
   let gpuURL = api_url;
@@ -65,14 +22,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   async function startTranscription(file) {
-      // Convert before uploading
-    // console.log("Converting to WAV...");
-    // const wavFile = await convertToWav(file);
     const formData = new FormData();
     formData.append("jobid", String(crypto.randomUUID())); 
     formData.append("file", file);
-    // formData.append("model", "medium");
-    // formData.append("out_format", "txt");
 
     try {
       dropButton.disabled = true;

@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 window.location.href = "/login";
                 return;
             }
-            setupNavbar();
+            // setupNavbar();
             loadTranscriptions();
 
 

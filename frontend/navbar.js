@@ -1,4 +1,4 @@
-function loadNavbar() {
+async function loadNavbar() {
     const root = document.getElementById("navbar");
     if (!root) return Promise.resolve();
     return fetch("navbar.html")
@@ -7,8 +7,10 @@ function loadNavbar() {
             const anchor1 = document.getElementById("navbar-anchor1");
             const anchor2 = document.getElementById("navbar-anchor2")
             if (!anchor1 || !anchor2) return
-            anchor1.textContent = "dashboard"
-            anchor1.href = "/dashboard"
+            
+            anchor1.textContent = (window.location.pathname === "/dashboard") ? "upload" : "dashboard"
+            anchor1.href = (window.location.pathname === "/dashboard") ? "/" : "/dashboard"
+
             anchor2.textContent = "log out"
             anchor2.href = "/"
             anchor2.addEventListener("click", async (e) => {
