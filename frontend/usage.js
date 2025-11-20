@@ -11,6 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const usageTable = document.getElementById('usage-table');
     const msg = document.getElementById('msg');
 
+    
+
     getUsage()
         .then((data) => {
             if (data.error) {
@@ -47,6 +49,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (msg) msg.textContent = '';
         })
+        .then(() => {
+            const anchor1 = document.getElementById("navbar-anchor1");
+            const anchor2 = document.getElementById("navbar-anchor2");
+            anchor1.textContent = "view files";
+            anchor1.href = "/dashboard";
+            anchor2.textContent = "log out";
+            anchor2.href = "/";
+            anchor2.addEventListener("click", async (e) => {
+                e.preventDefault();
+                await fetch(`${AUTH_URL}/logout`, { method: "POST", credentials: "include" });
+                window.location.href = "/";
+            });
+        })
         .catch((err) => {
             if (msg) {
                 msg.textContent = 'failed to load usage: ' + err.message;
@@ -54,3 +69,5 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(err.message);
         });
 });
+
+
