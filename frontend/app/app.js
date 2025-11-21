@@ -10,4 +10,4 @@ app.get(/.*/, (req, res) => {
 });
 
 
-app.listen(9000);
+app.listen(8000, () => { console.log(`auth service running on port`); });
