@@ -1,13 +1,11 @@
+/.git
+/node_modules
 package-lock.json
 node_modules
 *.pem
-original
 *.env
-/.git
-/node_modules
 .dockerignore
 Dockerfile
 fly.toml
-*.mp3
-utils_options.py
 *.pyc
+asr_options.py

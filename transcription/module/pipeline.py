@@ -12,7 +12,6 @@ from .dataclasses import TranscriptionError, TranscriptionResult, \
 from .models import get_align_model, get_diarization_pipeline, get_device, get_whisper_model
 
 DEVICE: Final[str] = get_device()
-STATES: Final[tuple[str, str, str, str, str, str]] = ("idle", "received", "transcribing", "aligning", "diarizing", "post-processing")
 _FFMPEG_AVAILABLE: Final[bool] = which("ffmpeg") is not None # caching ffmpeg presence so that it's not called repeatedly
 
 def load_audio(data:bytes) -> ndarray:
