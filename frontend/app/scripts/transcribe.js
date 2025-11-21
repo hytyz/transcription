@@ -26,9 +26,12 @@ function setupTranscribe() {
     });
 
     async function startTranscription(file) {
+        const buffer = await file.arrayBuffer();
+        const clonedFile = new File([buffer], file.name, { type: file.type });
+
         const formData = new FormData();
         formData.append("jobid", String(crypto.randomUUID()));
-        formData.append("file", file);
+        formData.append("file", clonedFile);
 
         try {
             dropButton.disabled = true;
@@ -44,7 +47,7 @@ function setupTranscribe() {
             const res = await fetch(`${gpuURL}/upload`, { method: "POST", body: formData, credentials: "include" });
 
             if (!res.ok) {
-                alert("error starting transcription.");
+                alert("error starting transcription " + res);
                 window.location.reload();
             }
 
@@ -63,7 +66,7 @@ function setupTranscribe() {
 
         } catch (err) {
             console.error("error starting transcription:", err);
-            alert("error starting transcription.");
+            alert("error starting transcription " + err);
             window.location.reload();
         }
     }
