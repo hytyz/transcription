@@ -10,14 +10,14 @@
 # builtins.print = _builtins_print
 
 import os; import torch; import whisperx
-from typing import cast
+from typing import cast, Final
 from whisperx.asr import FasterWhisperPipeline
 from whisperx.diarize import DiarizationPipeline
 from utils_types import TranscriptionError, AlignMetadata
 from utils_options import asr_options
 
 # determines the n of speakers and how often segments are merged or split across speakers
-DIARIZATION_CLUSTER_THRESHOLD: float = 0.6 # try lowering to reduce overmerging
+DIARIZATION_CLUSTER_THRESHOLD: Final[float] = 0.6 # try lowering to reduce overmerging
 _DEVICE: str = "cuda" # required for diarization on gpu
 _ALIGN_MODEL: torch.nn.Module | None = None # cached whisperx alignment model instance
 _ALIGN_METADATA: AlignMetadata | None = None # cached metadata of the alignment model
