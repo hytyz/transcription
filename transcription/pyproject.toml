@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv]
+package = true
+
+[project]
+name = "transcription"
+version = "0.1.0"
+description = "diarized transcription pipeline with whisperx and pyannote"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+transcribe = "transcription:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["transcription*"]
