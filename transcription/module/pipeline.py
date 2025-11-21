@@ -3,35 +3,17 @@ from numpy import ndarray, frombuffer, clip, dtype
 from shutil import which
 import tempfile
 import subprocess
+from typing import Final
 from pandas import DataFrame
 from whisperx.asr import FasterWhisperPipeline
-from utils_types import TranscriptionError, TranscriptionResult, SegmentDict, AlignmentResult, DiarizationSegmentDict
-from utils_models import get_align_model, get_diarization_pipeline, get_device, get_whisper_model
+from .dataclasses import TranscriptionError, TranscriptionResult, \
+    Segment, AlignmentResult, alignment_result_from_whisper, \
+    alignment_result_to_whisper, transcription_result_from_whisper, segment_to_whisper
+from .models import get_align_model, get_diarization_pipeline, get_device, get_whisper_model
 
-DEVICE: str = get_device()
-STATES: tuple[str, str, str, str, str, str] = ("idle", "received", "transcribing", "aligning", "diarizing", "post-processing")
-_FFMPEG_AVAILABLE: bool = which("ffmpeg") is not None # caching ffmpeg presence so that it's not called repeatedly
-
-def convert_to_wav(audio_bytes: bytes) -> bytes:
-    """Convert any audio format to mono wav begdrugingly using subprocess and ffmpeg."""
-    try:
-        process = subprocess.Popen(
-            [
-                "ffmpeg", "-y",
-                "-i", "pipe:0",      # input from STDIN
-                "-ac", "1",          # mono
-                "-ar", "16000",      # 16kHz
-                "-f", "wav",         # output format
-                "pipe:1",            # output to STDOUT
-            ],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,)
-        out, err = process.communicate(input=audio_bytes)
-        if process.returncode != 0:
-            raise RuntimeError(f"FFmpeg conversion failed: {err.decode()}")
-        return out
-    except Exception as e:
-        print("FFmpeg error:", e)
-        raise
+DEVICE: Final[str] = get_device()
+STATES: Final[tuple[str, str, str, str, str, str]] = ("idle", "received", "transcribing", "aligning", "diarizing", "post-processing")
+_FFMPEG_AVAILABLE: Final[bool] = which("ffmpeg") is not None # caching ffmpeg presence so that it's not called repeatedly
 
 def load_audio(data:bytes) -> ndarray:
     """
@@ -72,14 +54,18 @@ def load_audio(data:bytes) -> ndarray:
 def transcribe_audio(audio: ndarray) -> TranscriptionResult:
     """run transcription on audio and return raw segments via cached whisperx model"""
     whisper_model: FasterWhisperPipeline = get_whisper_model()
-    with torch.inference_mode(): result: TranscriptionResult = whisper_model.transcribe(audio, language="en", task="transcribe") 
-    return result
+    with torch.inference_mode(): raw = whisper_model.transcribe(audio, language="en", task="transcribe")
+    return transcription_result_from_whisper(raw)
 
-def align_transcript_segments(audio: ndarray, segments: list[SegmentDict]) -> AlignmentResult:
+def align_transcript_segments(audio: ndarray, segments: list[Segment]) -> AlignmentResult:
     """aligns raw whisperx segments to audio via the cached alignment model"""
     align_model, align_metadata = get_align_model()
-    alignment_result: AlignmentResult = whisperx.align(segments, align_model, align_metadata, audio, DEVICE)
-    return alignment_result
+    whisper_segments = [segment_to_whisper(s) for s in segments]
+    raw = whisperx.align(whisper_segments, align_model, 
+                         {"language": align_metadata.language, 
+                          "dictionary": align_metadata.dictionary, 
+                          "type": align_metadata.type}, audio, DEVICE)
+    return alignment_result_from_whisper(raw)
 
 def run_diarization_pipeline(audio: ndarray) -> DataFrame:
     """runs speaker diarization on audio via the cached diarization pipeline"""
@@ -89,46 +75,45 @@ def run_diarization_pipeline(audio: ndarray) -> DataFrame:
 
 def postprocess_segments(diarization_result: DataFrame, alignment_result: AlignmentResult) -> bytes:
     """merges word level speakers and timings into final utterances and formats the transcript"""
-    alignment_result = whisperx.assign_word_speakers(diarization_result, alignment_result)
+    aligned_dict: dict = alignment_result_to_whisper(alignment_result)
+    aligned_dict = whisperx.assign_word_speakers(diarization_result, aligned_dict)
+    alignment_result: AlignmentResult = alignment_result_from_whisper(aligned_dict)
     _fill_missing_word_speakers(alignment_result, diarization_result)
 
     lines: list[str] = []
-    for segment in alignment_result.get("segments", []):
-        words = [w for w in segment.get("words", []) if isinstance(w, dict) and isinstance(w.get("word"), str)]
+    for segment in alignment_result.segments:
+        words = [word for word in segment.words if isinstance(word.word, str)]
         if not words: continue
-        start = float(words[0].get("start") or 0.0)
-        speaker = str(words[0].get("speaker") or "UNKNOWN")
-        text = " ".join(w["word"] for w in words)
+        start = float(words[0].duration.start)
+        speaker = str(words[0].speaker or "UNKNOWN")
+        text = " ".join(word.word for word in words)
         lines.append(f"[{_format_timestamp(start)}] {speaker}: {text}")
-
     return "\n".join(lines).encode("utf-8")
 
 
 def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_result: DataFrame) -> None:
     """fills missing word "speaker" fields in alignment_result using diarization turns"""
     # TODO WRITE COMMENTS FOR THIS THING
-    diarization_intervals: DiarizationSegmentDict = []
+    diarization_intervals = []
     for _, diarization_row in diarization_result.iterrows():
         if "start" in diarization_row and "end" in diarization_row:
             diarization_intervals.append(
-                DiarizationSegmentDict( # TODO do this everywhere
-                (float(diarization_row["start"]), float(diarization_row["end"]), 
-                 str(diarization_row.get("speaker") or diarization_row.get("label") or ""))))
+                (float(diarization_row["start"]), float(diarization_row["end"]),
+                str(diarization_row.get("speaker") or diarization_row.get("label") or "")))
 
-    for segment in alignment_result.get("segments", []):
-        for word_entry in segment.get("words", []):
-            if word_entry.get("speaker"): continue
-            word_start = word_entry.get("start")
-            if word_start is None: continue
-            word_time = float(word_start)
+
+    for segment in alignment_result.segments:
+        for word_entry in segment.words:
+            if word_entry.speaker: continue
+            word_time = float(word_entry.duration.start)
             for interval_start, interval_end, interval_label in diarization_intervals:
                 if interval_start <= word_time < interval_end and interval_label:
-                    word_entry["speaker"] = interval_label
+                    word_entry.speaker = interval_label
                     break
 
 def _format_timestamp(total_seconds: float) -> str:
     hours: int = int(total_seconds // 3600)
     minutes: int = int((total_seconds % 3600) // 60)
     seconds: int = int(total_seconds % 60)
+
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-    
