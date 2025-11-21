@@ -285,7 +285,8 @@ a:focus-visible, button:focus-visible {
     display: block;
 }
 
-#usage-table {
+table {
+    table-layout: fixed;
     border-collapse: collapse;
     width: 100%;
     max-width: 30rem;
@@ -295,12 +296,22 @@ a:focus-visible, button:focus-visible {
 
 }
 
-#usage-table thead {
+table th:first-child,
+table td:first-child {
+    width: 60%;
+}
+
+table th:nth-child(2),
+table td:nth-child(2) {
+    width: 40%;
+}
+
+table thead {
     background-color: var(--grey);
 }
 
-#usage-table th,
-#usage-table td {
+table th,
+table td {
     padding: var(--space-xs) var(--space-sm);
     text-align: left;
     font-size: var(--font-size);
@@ -308,11 +319,11 @@ a:focus-visible, button:focus-visible {
     border: 0;
 }
 
-#usage-table > tbody > tr:first-child > td {
+table > tbody > tr:first-child > td {
     padding-top: var(--space-sm);
 }
 
-#usage-table thead th {
+table thead th {
     border-bottom: var(--border-width-thick) solid var(--black);
 }
 
