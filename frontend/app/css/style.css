@@ -285,6 +285,10 @@ a:focus-visible, button:focus-visible {
     display: block;
 }
 
+.file-card-date {
+    font-size: var(--font-size);
+}
+
 table {
     table-layout: fixed;
     border-collapse: collapse;

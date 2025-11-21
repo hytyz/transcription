@@ -6,7 +6,7 @@ from .dataclasses import TranscriptionError, AlignMetadata, align_metadata_from_
 from transcription.module.asr_options import asr_options
 
 # determines the n of speakers and how often segments are merged or split across speakers
-DIARIZATION_CLUSTER_THRESHOLD: Final[float] = 0.6 # try lowering to reduce overmerging
+DIARIZATION_CLUSTER_THRESHOLD: Final[float] = 0.5 # try lowering to reduce overmerging
 _DEVICE: Final[str] = "cuda" # required for diarization on gpu
 _ALIGN_MODEL: torch.nn.Module | None = None
 _ALIGN_METADATA: AlignMetadata | None = None
