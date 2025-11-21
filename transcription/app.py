@@ -6,9 +6,6 @@ from requests.exceptions import HTTPError
 import asyncio; import os; import jwt
 from asyncio import AbstractEventLoop
 from typing import Final
-# deprecate old /status endpoint
-# implement proper status updates through websocket
-# fix error throwing
 
 AUTH_URL: Final[str]  = "https://polina-gateway.fly.dev/auth"
 AUTH_PUBLIC_KEY: Final[str] = os.environ["AUTH_PUBLIC_KEY"]
@@ -41,11 +38,9 @@ def _post_transcription_to_s3(jobid: str, transcript_bytes: bytes) -> None:
     resp: Response = requests.post(f"{S3_BUCKET}/transcriptions", files=files, data=data)
     resp.raise_for_status()
 
-# i say all 
 async def broadcast(jobid: str, message: dict):
     """send message to all websocket clients listening for any given jobid"""
     global connections
-    # print(f"websocket BROADCAST → {jobid} → {message}") 
     if jobid not in connections: return
     dead = []
     for websocket in connections[jobid]:
@@ -61,16 +56,6 @@ async def _process_queue() -> None:
     while queue:
         jobid, audio_bytes = queue[0]
         currently_processing = True
-        # # print(f"{FORMAT}before await broadcast in _process_queue(){RESET}")
-        # await broadcast(jobid, {"status": "converting"})
-        # # print(f"{FORMAT}after await broadcast{RESET}")
-
-        # try:
-        #     await broadcast(jobid, {"status": "transcribing"})
-        #     transcript_bytes: bytes = await asyncio.to_thread(
-        #         generate_diarized_transcript,
-        #         audio_bytes=audio_bytes,
-        #     )
         loop: AbstractEventLoop = asyncio.get_running_loop()
 
         def _threadsafe_status(status: str) -> None:
@@ -103,13 +88,10 @@ def _post_jobid_to_auth(jobid: str, email: str, filename: str) -> None:
 
 def _decode_jwt_email(token: str | None) -> str | None:
     """decodes and returns the email claim from a jwt token"""
-    try:
-        payload = jwt.decode(token, AUTH_PUBLIC_KEY, algorithms=["RS256"])
-    except jwt.PyJWTError:
-        return None
+    try: payload = jwt.decode(token, AUTH_PUBLIC_KEY, algorithms=["RS256"])
+    except jwt.PyJWTError: return None
     value = payload.get("email")
-    if isinstance(value, str):
-        return value
+    if isinstance(value, str): return value
     return None
 
 @app.post("/upload")
@@ -121,15 +103,11 @@ async def upload(request: Request, file: UploadFile = File(...), jobid: str = Fo
 
     token = request.cookies.get("token")
     jwt_email: str | None = None
-    if token: 
-        jwt_email = _decode_jwt_email(token)
-        # print(f"{FORMAT} {jwt_email} sent a file with token {token}{RESET}")
+    if token: jwt_email = _decode_jwt_email(token)
     
-    # print(f"{FORMAT}before awaiting file.read{RESET}")
     audio_bytes: bytes = await file.read()
-    # print(f"{FORMAT}received file {file.filename}, before calling _process_queue(){RESET}")
+    
     to_append_to_queue: tuple[str, bytes] = jobid, audio_bytes
-    # print(f"{FORMAT}adding {to_append_to_queue} to queue{RESET}")
     queue.append(to_append_to_queue)
     if currently_processing:
         # posts the audio file to s3 bucket's /queue if currently transcribing
@@ -140,20 +118,8 @@ async def upload(request: Request, file: UploadFile = File(...), jobid: str = Fo
     try: asyncio.create_task(_process_queue())
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
     finally:
-        # print(f"{FORMAT}received file '{file.filename}' with jobid '{jobid}', after calling _process_queue(){RESET}")
         if jwt_email: _post_jobid_to_auth(jobid, jwt_email, file.filename)
         return {"jobid": jobid, "status": "accepted"}
-
-# # TODO: DEPRECATE THIS ENDPOINT IN FAVOR OF WEBSOCKET 
-# @app.post("/status")
-# async def get_status(jobid: str) -> dict[str, str]:
-#     """status endpoint"""
-#     global queue
-#     jobids: list[str] = [queued_jobid for queued_jobid, _ in queue]
-#     if jobid not in jobids: raise HTTPException(status_code=404, detail="job not found")
-
-#     if jobids[0] == jobid: return {"jobid": jobid, "status": "transcribing"}
-#     return {"jobid": jobid, "status": "queued"}
 
 @app.websocket("/ws/status")
 async def websocket_status(websocket: WebSocket):
@@ -165,25 +131,17 @@ async def websocket_status(websocket: WebSocket):
     try:
         # first message from client MUST be: {"jobid": "..."}
         init = await websocket.receive_json()
-        # print(f"{FORMAT} WEBSOCKET INIT {init}{RESET}")
         jobid = init.get("jobid")
         
         if not jobid: await websocket.close(code=4000); return
 
         await websocket.send_json({"status": "connected"})
-        # print(f"{FORMAT} currently_processing {currently_processing}")
-        # if queue: print(f"queue exists")
-        # print(f"\n jobid {jobid} \n {RESET}")
-        # if currently_processing and queue and queue[0][0] == jobid: await websocket.send_json({"status": "processing"})
-        # elif any(queued_jobid == jobid for queued_jobid, _ in queue): await websocket.send_json({"status": "queued"})
-        # else: await websocket.send_json({"status": "not found"})
 
         if any(queued_jobid == jobid for queued_jobid, _ in queue): await websocket.send_json({"status": "queued"})
         elif not (currently_processing and queue and queue[0][0] == jobid): await websocket.send_json({"status": "not found"})
 
         if jobid not in connections: connections[jobid] = []
         connections[jobid].append(websocket)
-        # print(connections)
 
         while True: await websocket.receive_text()  # not used
     except WebSocketDisconnect:

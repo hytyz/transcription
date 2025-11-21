@@ -92,8 +92,10 @@ def postprocess_segments(diarization_result: DataFrame, alignment_result: Alignm
 
 
 def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_result: DataFrame) -> None:
-    """fills missing word "speaker" fields in alignment_result using diarization turns"""
-    # TODO WRITE COMMENTS FOR THIS THING
+    """
+    fills missing word "speaker" fields in alignment_result using diarization turns
+    builds time intervals from diarization_result and 
+    assigns the interval speaker to words whose start time falls inside an interval"""
     diarization_intervals = []
     for _, diarization_row in diarization_result.iterrows():
         if "start" in diarization_row and "end" in diarization_row:
@@ -112,6 +114,7 @@ def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_r
                     break
 
 def _format_timestamp(total_seconds: float) -> str:
+    """formats a number of seconds into HH:MM:SS"""
     hours: int = int(total_seconds // 3600)
     minutes: int = int((total_seconds % 3600) // 60)
     seconds: int = int(total_seconds % 60)
