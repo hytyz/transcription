@@ -46,6 +46,7 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
             expandBtn.textContent = "expand";
         }
     });
+    card.dataset.jobid = jobid;
     card.dataset.fullText = fullText;
     let strippedFilename;
 
@@ -79,6 +80,56 @@ function downloadText(text, filename) {
     a.click();
 
     URL.revokeObjectURL(url);
+}
+
+async function deleteTranscription(jobid, card) {
+    console.log("Deleting job:", jobid);
+
+    // 1. delete from DB
+    let dbRes;
+    try {
+        dbRes = await fetch(`${AUTH_URL}/transcriptions/delete`, {
+            method: "DELETE",
+            credentials: "include",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ jobid }),
+        });
+
+        if (!dbRes.ok) {
+            const err = await dbRes.json().catch(() => ({}));
+            alert("DB deletion failed: " + (err.error || dbRes.status));
+            return;
+        }
+    } catch (err) {
+        console.error("DB delete error:", err);
+        alert("Network error when deleting from DB");
+        return;
+    }
+    // 2. delete from S3
+    let s3Res;
+    try {
+        s3Res = await fetch(`${BASE_URL}/s3/transcriptions/${jobid}`, {
+            method: "DELETE",
+            credentials: "include",
+        });
+
+        if (!s3Res.ok) {
+            const err = await s3Res.json().catch(() => ({}));
+            alert("S3 deletion failed: " + (err.message || s3Res.status));
+            return;
+        }
+    } catch (err) {
+        console.error("S3 delete error:", err);
+        alert("Network error when deleting from S3");
+        return;
+    }
+    // 3. If both succeeded we remove card
+    if (card) {
+        card.remove();
+    }
+    console.log(`Deleted transcription ${jobid} from DB + S3`);
 }
 
 // function activateDownloadButtons() {
@@ -118,7 +169,7 @@ function activateDownloadButtons() {
             if (!card) return;
 
             const jobid = card.dataset.jobid;
-            // deleteTranscription(jobid, card);   // your function
+            deleteTranscription(jobid, card);   
             return;
         }
         // update speaker names 
