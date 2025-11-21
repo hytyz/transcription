@@ -1,14 +1,56 @@
 # ytyz transcriber
+a small, self-hosted application for diarized audio transcription with a web API, an S3-compatible storage API, authentication, and a reverse-proxy gateway. it exposes HTTP endpoints for uploading audio, tracking transcription status over websocket, storing results in object storage, and managing users with JWT cookies
 
-todo:
+## architecture
+- gateway API: reverse proxy for a single origin and CORS surface
+- auth API: user management; PBKDF2 password hashing; RS256 JWT in httponly cookies; users stored in a sqlite db
+- transcription API: FastAPI service that runs whisperX + pyannote for diarization on (only nvidia) GPU; streams status updates over websocket; saves transcripts to S3.
+- S3 API: bun server that wraps an S3-compatible endpoint for queue files and transcripts
+
+## endpoints
+### gateway API
+`/`
+- proxies:
+  - `/auth` to auth API
+  - `/api` to transcription API
+  - `/s3` to S3 API
+  - `/` to the web app
+- `GET /__usage`
+
+### auth API
+`/auth`
+- `POST /create`
+- `POST /login`
+- `POST /logout`
+- `GET /me`
+- `POST /increment`
+- `GET /usage`
+- `GET /myusage`
+- `POST /transcriptions/add`
+- `DELETE /transcriptions/delete`
+- `GET /transcriptions/`
+
+### transcription API
+`/api`
+- `POST /upload` 
+- `WS /ws/status`
+
+### S3 API
+`/s3`
+- `POST /queue`
+- `POST /transcriptions`
+- `PUT /transcriptions`
+- `GET /queue/:jobid`
+- `GET /transcriptions/:jobid`
+- `DELETE /transcriptions/:key`
+
+## todo:
 1. self host (+ fix the flowchart + write a real readme)
-2. delete and edit transcription frontend ( for put/patch i need to call the s3 service with the new file and the job id,
-                                            for delete i need to call the s3 service and the auth service with the job id)
-3. api usage per endpoint for admins only
-4. "All user message strings must be stored in a separate file" json on frontend
+2. edit transcription frontend ( for put/patch i need to call the s3 service with the new file and the job id)
+3. "All user message strings must be stored in a separate file" json on frontend
 
-stretch goals:
+## stretch goals:
 1. rust ui
 2. cli
 3. ts everywhere
-4. email verification + password change via email + captcha on register
+4. email verification + password change via email + captcha on register (and proper security i guess)
