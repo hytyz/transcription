@@ -145,10 +145,20 @@ const app = Bun.serve({
 
     // DELETE /transcriptions/:jobid — delete transcription file
     if (req.method === "DELETE" && pathname.startsWith("/transcriptions")) {
-      let Key;
-      Key = pathname.replace("/transcriptions/", "");
+      const m = pathname.match(/^\/transcriptions\/([^/]+)$/);
+      let Key: string | null = null;
+      const rawKey = url.searchParams.get("key");
 
-      console.log("attempt to delete: ", Key);
+      if (rawKey && rawKey.trim() !== "") {
+        Key = rawKey.startsWith("transcriptions/") ? rawKey : `transcriptions/${rawKey}`;
+      } else if (m) {
+        const jobid = m[1];
+        Key = `transcriptions/${jobid}.txt`;
+      } else {
+        return json({ status: "error", message: "bad path" }, 400);
+      }
+    
+      console.log("attempt to delete: ", Key)
       try {
         await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key }));
 

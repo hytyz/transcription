@@ -287,7 +287,11 @@ app.get('/me', (req, res) => {
 });
 
 app.post('/increment', (req, res) => {
-    const { email } = req.body || {};
+    const token = req.cookies.token || req.header('authorization')?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'no token' });
+    const validity = verifyJwt(token);
+    if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
+    const email = validity.payload.email;
     if (!email) return res.status(400).json({ error: 'email required' });
 
     const stmt = db.prepare('UPDATE users SET api_usage = api_usage + 1 WHERE email = ?');
@@ -382,24 +386,16 @@ app.delete('/transcriptions/delete', (req, res) => {
     if (!token) return res.status(401).json({ error: 'no token' });
     const validity = verifyJwt(token);
     if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
-    const email = validity.payload.email; // we should use email to verify ownership
+    const email = validity.payload.email;
 
     const { jobid } = req.body || {};
-    if (!jobid) {
-        return res.status(400).json({ error: "jobid required" });
-    }
+    if (!jobid) return res.status(400).json({ error: 'jobid required' });
 
-    const stmt = db.prepare('DELETE FROM transcriptions WHERE jobid = ?');
-    stmt.run(jobid, function (err) {
-        if (err) {
-            return res.status(500).json({ error: 'db error' });
-        }
-
-        if (this.changes === 0) {
-            return res.status(404).json({ error: 'transcription not found' });
-        }
-
-        return res.json({ ok: true, jobid });
+    const stmt = db.prepare('DELETE FROM transcriptions WHERE jobid = ? AND email = ?');
+    stmt.run(jobid, email, function (err) {
+      if (err) return res.status(500).json({ error: 'db error' });
+      if (this.changes === 0) return res.status(404).json({ error: 'transcription not found' });
+      return res.json({ ok: true, jobid });
     });
     stmt.finalize();
 });
