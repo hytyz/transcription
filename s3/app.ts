@@ -5,6 +5,7 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import dotenv from "dotenv";
+import path from "path";
 dotenv.config();
 
 //config
@@ -143,13 +144,15 @@ const app = Bun.serve({
     }
 
     // DELETE /transcriptions/:jobid — delete transcription file
-    const dMatch = pathname.match(/^\/transcriptions\/(.+)$/);
-    if (req.method === "DELETE" && dMatch) {
-      const jobid = dMatch[1];
-      const Key = `transcriptions/${jobid}.txt`;
+    if (req.method === "DELETE" && pathname.startsWith("/transcriptions")) {
 
+      let Key;
+      Key = pathname.replace("/transcriptions/", "")
+    
+      console.log("attempt to delete: ", Key)
       try {
         await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key }));
+
         return json({ status: "ok", message: "file deleted successfully" });
       } catch {
         return json({ status: "error", message: "file not found" }, 404);
