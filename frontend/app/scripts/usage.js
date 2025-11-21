@@ -1,4 +1,4 @@
-import { navigateTo, AUTH_URL } from "../router.js";
+import { navigateTo, BASE_URL, AUTH_URL } from "../router.js";
 
 function setupUsagePage() {
 
@@ -6,18 +6,23 @@ function setupUsagePage() {
         try {
             const res = await fetch(`${AUTH_URL}/myusage/`, { credentials: "include" });
             if (res.status !== 200) { navigateTo("/login"); return; }
+            let data;
             return data = await res.json();
         } catch (e) {
             console.error("Failed to load usage", e);
         }
     }
     const usageTable = document.getElementById('usage-table');
+    const apiTable = document.getElementById('api-table');
     const msg = document.getElementById('msg');
 
     getUsageForCurrentUser().then((res) => {
+        console.log(res)
         document.getElementById('total-api-calls').textContent = res.usage
         document.getElementById('user-email').textContent = res.email
     });
+
+
 
     fetch(`${AUTH_URL}/usage`, { credentials: 'include', })
         .then(async (res) => {
@@ -43,7 +48,30 @@ function setupUsagePage() {
             });
 
             if (msg) msg.textContent = '';
-        })
+        }).then(() => {
+            fetch(`${BASE_URL}/__usage`).then(async (res) => {
+                if (res.status != 200) {
+                    console.log("failed")
+                }
+                let data = await res.json()
+                const tbody = apiTable.querySelector('tbody');
+                if (!tbody) {
+                    if (msg) {
+                        msg.textContent = 'failed to display usage';
+                    }
+                    console.log('tbody element not found in usage table');
+                    return;
+                }
+                tbody.innerHTML = '';
+                Object.entries(data).forEach(([key, val]) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${key}</td><td>${val}</td>`;
+                    tbody.appendChild(tr);
+                });
+
+            })
+        }
+        )
         .catch((err) => {
             if (msg) {
                 msg.textContent = 'failed to load usage: ' + err.message;
