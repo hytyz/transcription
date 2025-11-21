@@ -145,11 +145,10 @@ const app = Bun.serve({
 
     // DELETE /transcriptions/:jobid — delete transcription file
     if (req.method === "DELETE" && pathname.startsWith("/transcriptions")) {
-
       let Key;
-      Key = pathname.replace("/transcriptions/", "")
-    
-      console.log("attempt to delete: ", Key)
+      Key = pathname.replace("/transcriptions/", "");
+
+      console.log("attempt to delete: ", Key);
       try {
         await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key }));
 
