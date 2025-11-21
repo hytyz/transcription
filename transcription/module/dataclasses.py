@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-#internal data structures
+# internal data structures
 
 class TranscriptionError(Exception): pass
 
