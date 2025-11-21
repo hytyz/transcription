@@ -226,7 +226,8 @@ a:focus-visible, button:focus-visible {
 
 .transcript-container { margin-top: var(--space-2xl); }
 
-.download-button, .file-card-expand, .file-card-download {
+.file-card-expand,
+.file-buttons > * {
     padding: 0;
     font-size: var(--font-size);
     border: none;
@@ -234,15 +235,15 @@ a:focus-visible, button:focus-visible {
     cursor: pointer;
 }
 
-.download-button {
+.file-buttons > * {
     width: var(--space-xl);
     height: var(--space-xl);
     display: inline-block;
 }
 
-.download-button img {
-    width: 100%;
-    height: 100%;
+.file-buttons img {
+    width: 90%;
+    height: 90%;
     object-fit: contain;
 }
 
@@ -253,7 +254,7 @@ a:focus-visible, button:focus-visible {
     margin: 0 0 var(--space-md) 0;
 }
 
-.file-card-inner { padding: var(--space-md) var(--space-lg); }
+.file-card-inner { padding: var(--space-md) var(--space-lg) var(--space-xs) var(--space-lg); }
 
 .file-card-header {
     margin-bottom: var(--space-sm);
