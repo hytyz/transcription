@@ -1,13 +1,13 @@
-import requests; from requests import Response
-from transcription import generate_diarized_transcript
-from dotenv import load_dotenv; from fastapi import FastAPI
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, WebSocket, WebSocketDisconnect
-from requests.exceptions import HTTPError
-import asyncio
 import os
-from typing import Optional
-import jwt
+import asyncio
 import subprocess
+import requests
+from requests import Response
+from requests.exceptions import HTTPError
+from dotenv import load_dotenv
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, WebSocket, WebSocketDisconnect
+import jwt
+from transcription import generate_diarized_transcript
 
 AUTH_URL = "https://polina-gateway.fly.dev/auth"
 AUTH_PUBLIC_KEY = os.environ["AUTH_PUBLIC_KEY"]
@@ -64,8 +64,7 @@ async def _process_queue() -> None:
         await broadcast(jobid, {"status": "converting"})
         # print(f"{FORMAT}after await broadcast{RESET}")
 
-        try: 
-            # print(f"{FORMAT}IN TRY{RESET}")
+        try:
             await broadcast(jobid, {"status": "transcribing"})
             transcript_bytes: bytes = await asyncio.to_thread(
                 generate_diarized_transcript,
@@ -93,12 +92,15 @@ def _post_jobid_to_auth(jobid: str, email: str, filename: str) -> None:
         resp.raise_for_status()
     except HTTPError as e: print(f"{FORMAT}mauth error for {email}: {e} {resp.text}{RESET}"); return
 
-def _decode_jwt_email(token: Optional[str]) -> Optional[str]:
+def _decode_jwt_email(token: str | None) -> str | None:
     """decodes and returns the email claim from a jwt token"""
-    try: payload = jwt.decode(token, AUTH_PUBLIC_KEY, algorithms=["RS256"])
-    except jwt.PyJWTError: return None
+    try:
+        payload = jwt.decode(token, AUTH_PUBLIC_KEY, algorithms=["RS256"])
+    except jwt.PyJWTError:
+        return None
     value = payload.get("email")
-    if isinstance(value, str): return value
+    if isinstance(value, str):
+        return value
     return None
 
 @app.post("/upload")

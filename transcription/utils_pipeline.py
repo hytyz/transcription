@@ -5,12 +5,33 @@ import tempfile
 import subprocess
 from pandas import DataFrame
 from whisperx.asr import FasterWhisperPipeline
-from utils_types import TranscriptionError, TranscriptionResult, SegmentDict, AlignmentResult
+from utils_types import TranscriptionError, TranscriptionResult, SegmentDict, AlignmentResult, DiarizationSegmentDict
 from utils_models import get_align_model, get_diarization_pipeline, get_device, get_whisper_model
 
 DEVICE: str = get_device()
 STATES: tuple[str, str, str, str, str, str] = ("idle", "received", "transcribing", "aligning", "diarizing", "post-processing")
 _FFMPEG_AVAILABLE: bool = which("ffmpeg") is not None # caching ffmpeg presence so that it's not called repeatedly
+
+def convert_to_wav(audio_bytes: bytes) -> bytes:
+    """Convert any audio format to mono wav begdrugingly using subprocess and ffmpeg."""
+    try:
+        process = subprocess.Popen(
+            [
+                "ffmpeg", "-y",
+                "-i", "pipe:0",      # input from STDIN
+                "-ac", "1",          # mono
+                "-ar", "16000",      # 16kHz
+                "-f", "wav",         # output format
+                "pipe:1",            # output to STDOUT
+            ],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,)
+        out, err = process.communicate(input=audio_bytes)
+        if process.returncode != 0:
+            raise RuntimeError(f"FFmpeg conversion failed: {err.decode()}")
+        return out
+    except Exception as e:
+        print("FFmpeg error:", e)
+        raise
 
 def load_audio(data:bytes) -> ndarray:
     """
@@ -85,12 +106,14 @@ def postprocess_segments(diarization_result: DataFrame, alignment_result: Alignm
 
 def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_result: DataFrame) -> None:
     """fills missing word "speaker" fields in alignment_result using diarization turns"""
-    diarization_intervals = []
+    # TODO WRITE COMMENTS FOR THIS THING
+    diarization_intervals: DiarizationSegmentDict = []
     for _, diarization_row in diarization_result.iterrows():
         if "start" in diarization_row and "end" in diarization_row:
             diarization_intervals.append(
+                DiarizationSegmentDict( # TODO do this everywhere
                 (float(diarization_row["start"]), float(diarization_row["end"]), 
-                 str(diarization_row.get("speaker") or diarization_row.get("label") or "")))
+                 str(diarization_row.get("speaker") or diarization_row.get("label") or ""))))
 
     for segment in alignment_result.get("segments", []):
         for word_entry in segment.get("words", []):
@@ -108,6 +131,4 @@ def _format_timestamp(total_seconds: float) -> str:
     minutes: int = int((total_seconds % 3600) // 60)
     seconds: int = int(total_seconds % 60)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-
-
     

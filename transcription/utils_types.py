@@ -1,7 +1,9 @@
 from dataclasses import dataclass
-from typing import TypedDict
+from typing import TypedDict # TODO refactor into dataclass
 
 #internal data structures
+
+# TODO refactor all the start and end into duration dataclass
 
 @dataclass
 class SpeakerSegment:
@@ -21,7 +23,8 @@ class Utterance:
 class TranscriptionError(Exception): pass
 
 # external api views
-class SegmentDict(TypedDict):
+@dataclass 
+class SegmentDict:
     """raw segment from whisperx transcription or alignment"""
     start: float
     end: float
@@ -37,6 +40,7 @@ class WordEntry(TypedDict):
     end: float
     word: str
     speaker: str | None
+
 class WordAlignedSegmentDict(SegmentDict):
     """segment with start, end, text, and its list of aligned word entries"""
     words: list[WordEntry]
@@ -52,7 +56,8 @@ class DiarizationSegmentDict(TypedDict, total=False):
     speaker: str
     label: str
 
-class DiarizationDict(TypedDict): segments: list[DiarizationSegmentDict]
+class DiarizationDict(TypedDict): 
+    segments: list[DiarizationSegmentDict]
 
 class AlignMetadata(TypedDict):
     """metadata of the alignment model"""

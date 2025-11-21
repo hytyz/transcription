@@ -15,6 +15,8 @@ def generate_diarized_transcript(audio_bytes: bytes) -> bytes:
     except TranscriptionError as e: raise TranscriptionError(f"transcription with diarization failed: {e}") from e
     except Exception as e: raise Exception(f"transcription with diarization failed: {e}") from e
 
+# this is temporary for cli testing
+
 import argparse
 from pathlib import Path
 
