@@ -6,7 +6,7 @@ class TranscriptionError(Exception): pass
 
 @dataclass(frozen=True)
 class Duration:
-    """time bounds in seconds [x,y)"""
+    """time bounds in seconds [start, end)"""
     start: float
     end: float
 
@@ -32,17 +32,17 @@ class WordAlignedSegment(Segment):
 
 @dataclass
 class AlignmentResult:
-    """segments produced by the alignment stage"""
+    """segments produced by alignment"""
     segments: list[WordAlignedSegment]
 
 @dataclass
 class TranscriptionResult:
-    """output of the transcription step from whisperx"""
+    """output of transcription from whisperx"""
     segments: list[Segment]
 
 @dataclass
 class SpeakerSegment:
-    """diarization-only turn, no text"""
+    """diarization-only speaker turn, no text"""
     duration: Duration
     label:str
 

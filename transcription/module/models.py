@@ -1,28 +1,17 @@
-# import builtins; import inspect
-# import logging; import warnings
-
-# def _builtins_print(*args, **kwargs):
-#     if inspect.currentframe().f_back.f_globals.get("__name__") == "app":
-#         builtins.print(*args, **kwargs)
-
-# logging.disable(logging.CRITICAL)
-# warnings.filterwarnings("ignore")
-# builtins.print = _builtins_print
-
 import os; import torch; import whisperx
 from typing import cast, Final
 from whisperx.asr import FasterWhisperPipeline
 from whisperx.diarize import DiarizationPipeline
 from .dataclasses import TranscriptionError, AlignMetadata, align_metadata_from_whisper
-from transcription.module.options import asr_options
+from transcription.module.asr_options import asr_options
 
 # determines the n of speakers and how often segments are merged or split across speakers
 DIARIZATION_CLUSTER_THRESHOLD: Final[float] = 0.6 # try lowering to reduce overmerging
 _DEVICE: Final[str] = "cuda" # required for diarization on gpu
-_ALIGN_MODEL: torch.nn.Module | None = None # cached whisperx alignment model instance
-_ALIGN_METADATA: AlignMetadata | None = None # cached metadata of the alignment model
-_DIARIZATION_PIPELINE: DiarizationPipeline | None = None # cached diarization pipeline instance
-_WHISPER_MODEL: FasterWhisperPipeline | None = None # cached whisperx transcription model instance
+_ALIGN_MODEL: torch.nn.Module | None = None
+_ALIGN_METADATA: AlignMetadata | None = None
+_DIARIZATION_PIPELINE: DiarizationPipeline | None = None
+_WHISPER_MODEL: FasterWhisperPipeline | None = None
 
 # for loading the pyannote diarization model
 _token: str | None = os.environ.get("HF_TOKEN")
