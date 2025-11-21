@@ -340,3 +340,9 @@ table thead th {
 #usage-back-button {
     padding-bottom: var(--space-xl);
 }
+
+.auth-error {
+  display: none;
+  margin-top: 0;
+  font-size: var(--font-size);
+}

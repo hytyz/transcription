@@ -40,10 +40,17 @@ async function login() {
         const result = await loginUser(email, password);
         // console.log(result)
         if (result.ok) {
+            authError.textContent = "";
+            authError.style.display = "none"
             setAuthState(true)
             navigateTo('/dashboard');
         }
-        else console.log(result.error);
+        else {
+            console.log(result.error);
+            const authError = document.getElementById('auth-error');
+            authError.textContent = result.error;
+            authError.style.display = "block"
+        }
     });
 }
 
