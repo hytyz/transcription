@@ -137,7 +137,7 @@ async function openModifyModal(jobid, currentText) {
     // console.log("opening Modal")
     // browsers love caching stuff
     document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
-    // Extract unique speakers from lines: [hh:mm:ss] SPEAKER:
+    // extract unique speakers from lines: [hh:mm:ss] SPEAKER:
     const lineRegex = /^\[\d{2}:\d{2}:\d{2}\]\s+([^:]+):/gm;
     const speakerSet = new Set();
     let match;
@@ -148,10 +148,10 @@ async function openModifyModal(jobid, currentText) {
 
     const speakers = [...speakerSet];
 
-    // 2. Load the modal template
+    //load the modal template
     const modalHtml = await fetch("/templates/modal.html").then(r => r.text());
 
-    // 3. Insert modal into DOM
+    //insert modal into DOM
     const wrapper = document.createElement("div");
     wrapper.innerHTML = modalHtml.trim();
     const modal = wrapper.firstElementChild;
@@ -160,7 +160,7 @@ async function openModifyModal(jobid, currentText) {
     const tableBody = modal.querySelector("#speakers-modal tbody");
     const applyBtn = modal.querySelector("#relabel-speakers-btn");
 
-    // 4. Populate rows: old label | input(new label)
+    // populate rows old label | new label input
     tableBody.innerHTML = "";
     speakers.forEach(sp => {
         const tr = document.createElement("tr");
@@ -171,19 +171,12 @@ async function openModifyModal(jobid, currentText) {
         tableBody.appendChild(tr);
     });
 
-    // 5. When user clicks "Apply", process replacements
+    // when user clicks apply, process renaming
     applyBtn.addEventListener("click", async () => {
-        // Collect replacements
+        // collect replacements
         const inputs = tableBody.querySelectorAll("input[data-old]");
         const replacements = {};
 
-        // inputs.forEach(inp => {
-        //     const oldLabel = inp.dataset.old;
-        //     const newLabel = inp.value.trim();
-        //     if (newLabel) {
-        //         replacements[oldLabel] = newLabel;
-        //     }
-        // });
         inputs.forEach(inp => {
             const oldLabel = inp.dataset.old;
             const newLabel = inp.value.trim();
@@ -191,6 +184,7 @@ async function openModifyModal(jobid, currentText) {
             if (newLabel) {
                 if (!/^[A-Za-z0-9 ]+$/.test(newLabel)) {
                     alert(`Invalid speaker name: "${newLabel}". Letters, numbers, spaces only.`);
+                    document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
                     return;
                 }
                 replacements[oldLabel] = newLabel;
@@ -201,17 +195,18 @@ async function openModifyModal(jobid, currentText) {
         // if nothing provided, do nothing
         if (Object.keys(replacements).length === 0) {
             alert("Please enter at least one new label.");
+            document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
             return;
         }
 
-        // 6. build updated transcript
+        // build updated transcript
         let updatedText = currentText;
         for (const [oldSp, newSp] of Object.entries(replacements)) {
             const re = new RegExp(`\\b${oldSp}\\b`, "g");
             updatedText = updatedText.replace(re, newSp);
         }
 
-        // 7. PUT updated file to S3 microservice (multipart/form-data)
+        // PUT updated file to S3 microservice 
         try {
             const form = new FormData();
             form.append("jobid", jobid);
@@ -233,10 +228,10 @@ async function openModifyModal(jobid, currentText) {
         }
 
 
-        // 8. Write to sessionStorage cache
+        // 8. write to sessionStorage cache
         sessionStorage.setItem(`transcription_${jobid}`, updatedText);
 
-        // 9. Update card.dataset.fullText live
+        // 9. update card.dataset.fullText live
         const card = document.querySelector(`.file-card[data-jobid="${jobid}"]`);
         if (card) {
             card.dataset.fullText = updatedText;
@@ -266,8 +261,10 @@ async function openModifyModal(jobid, currentText) {
 
         window.location.reload();
 
-        // 10. Close modal
+        // close modal
         modal.remove();
+        document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
+
 
     });
 
@@ -280,7 +277,6 @@ async function openModifyModal(jobid, currentText) {
             // modal.remove()
             // overlay.remove();
             document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
-
         }
 
     }, { once: true });
