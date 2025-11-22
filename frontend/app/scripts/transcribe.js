@@ -74,7 +74,7 @@ function setupTranscribe() {
 
         ws.onopen = () => {
             ws.send(JSON.stringify({ jobid }));
-            console.log("WS connected for job:", jobid);
+            console.log("ws connected for job:", jobid);
         };
 
         ws.onmessage = async (event) => {
@@ -95,8 +95,8 @@ function setupTranscribe() {
             }
         };
 
-        ws.onerror = (e) => console.error("WS error:", e);
-        ws.onclose = () => console.log("WS closed");
+        ws.onerror = (e) => console.error("ws error:", e);
+        ws.onclose = () => console.log("ws closed");
     }
 
     async function setTranscriptionStatus(status) {

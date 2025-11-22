@@ -259,12 +259,8 @@ async function openModifyModal(jobid, currentText) {
             e.preventDefault();
             document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
         }
-
     }, { once: true });
-
-    
 }
-
 
 function activateDownloadButtons() {
     document.addEventListener("click", (e) => {
@@ -368,7 +364,7 @@ function dashboardScript() {
             if (allTranscriptions.length === 0) {
                 container.innerHTML = "";
                 const anchor = document.createElement("a");
-                anchor.textContent = "no transcriptions found. click here to upload.";
+                anchor.textContent = translate("dashboard.emptyState");
                 anchor.href = "/index.html";
                 anchor.style.textAlign = "center";
                 container.appendChild(anchor);
@@ -383,7 +379,7 @@ function dashboardScript() {
             setupInfiniteScroll();
         } catch (e) {
             console.error("Failed to load metadata", e);
-            container.innerHTML = `<p>Error loading transcriptions.</p>`;
+            container.innerHTML = `<p>error loading transcriptions.</p>`;
         }
     }
 

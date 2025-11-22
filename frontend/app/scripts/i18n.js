@@ -3,19 +3,15 @@ let messages = {};
 async function loadMessages(locale = "en") {
   const res = await fetch(`/messages-${locale}.json`);
   if (!res.ok) {
-    console.error("failed to load messages for locale", locale);
+    console.error("failed to load messages for locale ", locale);
     return;
   }
   messages = await res.json();
 }
 
 function translate(key, fallback) {
-  if (Object.prototype.hasOwnProperty.call(messages, key)) {
-    return messages[key];
-  }
-  if (fallback !== undefined) {
-    return fallback;
-  }
+  if (Object.prototype.hasOwnProperty.call(messages, key)) { return messages[key]; }
+  if (fallback !== undefined) { return fallback; }
   return key;
 }
 
