@@ -3,7 +3,6 @@ import { navigateTo } from "../router.js";
 const BASE_URL = "https://polina-gateway.fly.dev"
 const api_url = `${BASE_URL}/api`;
 let gpuURL = api_url;
-let s3URL = `${BASE_URL}/s3`;
 const WebSocketURL = "wss://pataka.tail2feabe.ts.net/ws/status";
 
 function setupTranscribe() {
@@ -16,7 +15,6 @@ function setupTranscribe() {
     const fileSizeLabel = document.getElementById("upload-file-size");
 
     let currentJobId = null;
-    // let pollInterval = null;
 
     dropButton.addEventListener("click", () => { audioFileInput.click(); });
 
@@ -61,7 +59,6 @@ function setupTranscribe() {
             currentJobId = data.jobid;
             sessionStorage.setItem("currentJobId", currentJobId);
 
-            // startPollingStatus();
             startWebSocket(currentJobId);
 
         } catch (err) {
@@ -70,27 +67,7 @@ function setupTranscribe() {
             window.location.reload();
         }
     }
-
-    // function startPollingStatus() {
-    //   if (pollInterval) clearInterval(pollInterval);
-
-    //   pollInterval = setInterval(async () => {
-    //     try {
-    //       const res = await fetch(`${s3URL}/transcriptions/${currentJobId}`);
-    //       if (!res.ok) return;
-
-    //       // const data = await res.json();
-
-    //       else {
-    //         clearInterval(pollInterval);
-    //         pollInterval = null;
-    //         fetchTranscription();
-    //       }
-    //     } catch (err) {
-    //       console.error("polling error:", err);
-    //     }
-    //   }, 10000);
-    // }
+    
     function startWebSocket(jobid) {
         const ws = new WebSocket(`${WebSocketURL}`);
 
@@ -107,7 +84,6 @@ function setupTranscribe() {
 
             if (msg.status === "completed") {
                 ws.close();
-                // fetchTranscription();
                 sessionStorage.setItem("currentJobId", jobid)
                 navigateTo("/transcription")
             }
@@ -125,33 +101,6 @@ function setupTranscribe() {
     async function setTranscriptionStatus(status) {
         document.getElementById("progress-status").textContent = status;
     }
-
-    // async function fetchTranscription() {
-    //     try {
-    //         const res = await fetch(`${s3URL}/transcriptions/${currentJobId}`);
-    //         if (!res.ok) {
-    //             alert("failed to fetch transcription.");
-    //             dropButton.disabled = false;
-    //             return;
-    //         }
-    //         console.log("fetch transcription response:");
-    //         console.log(res);
-    //         // console.log(await res.text());
-    //         // const json = await res.json();
-    //         let text = await res.text();
-    //         // console.log("transcription text:");
-    //         // console.log(text);
-    //         text = text.replace(/\\n/g, "\n");
-
-    //         sessionStorage.setItem("transcriptionText", text);
-    //         sessionStorage.setItem("transcriptionJobId", currentJobId);
-    //         window.location.href = "transcription.html";
-    //     } catch (err) {
-    //         console.error("error getting transcription:", err);
-    //         alert("failed to fetch transcription.");
-    //         dropButton.disabled = false;
-    //     }
-    // }
 }
 
 export { setupTranscribe }

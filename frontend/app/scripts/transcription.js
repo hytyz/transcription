@@ -1,6 +1,6 @@
 import { createCardFromTemplate, activateDownloadButtons, formatToYYYYMMDD } from "./dashboard.js";
 
-// note to self date.now() gives milliseconds since epoch
+// date.now() gives milliseconds since epoch
 async function setupTranscription() {
     const root = document.getElementById("file-card-root");
     if (!root) return;

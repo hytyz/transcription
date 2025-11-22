@@ -1,4 +1,3 @@
-// we have conditional rendering at home ahh
 function applyAuthUI(authState) {
     const authedElements = document.querySelectorAll("[data-if-auth]")
     const guestElements = document.querySelectorAll("[data-if-guest]")
