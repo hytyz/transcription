@@ -1,0 +1,82 @@
+.file-card-body {
+    background-color: var(--white);
+    border: var(--border-width-thick) solid var(--black);
+}
+
+.file-card-footer,
+.file-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#upload-progress-card {
+    margin: 0;
+}
+
+#upload-file-size {
+    min-width: var(--space-2xl);
+}
+
+.upload-card,
+.files-list {
+    max-width: 50rem;
+    width: 90%;
+}
+
+.upload-card {
+    margin: var(--space-xl) auto 0;
+}
+
+.upload-card-inner {
+    padding: var(--space-md) var(--space-lg);
+}
+
+.upload-card-header {
+    margin-bottom: var(--space-md);
+}
+
+.upload-card-body {
+    align-items: center;
+    display: flex;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+}
+
+.file-card-inner {
+    padding: var(--space-md) var(--space-lg) var(--space-xs) var(--space-lg);
+}
+
+.file-card-header {
+    margin-bottom: var(--space-sm);
+    font-size: var(--font-size-lg);
+}
+
+.file-card-body {
+    max-height: 10rem;
+    padding: var(--space-sm);
+    margin-bottom: var(--space-sm);
+    overflow: hidden;
+}
+
+.file-card-body.expanded {
+    max-height: none;
+    overflow: visible;
+}
+
+.file-card-snippet {
+    font-size: var(--font-size);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+}
+
+.file-card-download .download-icon {
+    width: var(--space-md);
+    height: var(--space-md);
+    display: block;
+}
+
+.file-card-date {
+    font-size: var(--font-size);
+}
+

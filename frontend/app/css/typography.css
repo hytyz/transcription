@@ -1,0 +1,25 @@
+h1 {
+    margin-top: var(--space-xl);
+    font-size: var(--font-size-lg);
+    font-weight: 400;
+}
+
+h2 {
+    margin: var(--space-sm) 0 0 0;
+    font-size: var(--font-size-lg);
+    font-weight: 400;
+}
+
+a {
+    text-decoration: none;
+    color: var(--black);
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+a:focus-visible {
+    outline: var(--border-width-thin) solid var(--black);
+    outline-offset: var(--border-width-thin);
+}
