@@ -273,7 +273,7 @@ async function openModifyModal(jobid, currentText) {
         if (e.target.classList.contains("modal-overlay") || e.target.classList.contains("cancel-btn")) {
             e.preventDefault();
             modal.remove();
-        } 
+        }
 
     });
 }
@@ -318,6 +318,43 @@ function activateDownloadButtons() {
     });
 }
 
+function interceptSelectAll() {
+
+    let lastClickInsideCard = null;
+
+    // last click location
+    document.addEventListener("mousedown", (e) => {
+        lastClickInsideCard = e.target.closest(".file-card-body") || null;
+        // console.log(e.target.closest(".file-card-body"))
+    });
+
+    console.log("select all interception")
+    document.addEventListener("keydown", (e) => {
+        const isSelectAll = (e.key.toLowerCase() === "a" && (e.ctrlKey || e.metaKey));
+        if (!isSelectAll) return;
+
+        if (!lastClickInsideCard) return; // click was not on a card
+
+        const selection = window.getSelection();
+
+        // prefer expanded text if expanded fallback to snippet
+        const cardTextEl =
+            lastClickInsideCard.querySelector(".file-card-body.expanded")
+            || lastClickInsideCard.querySelector(".file-card-snippet");
+
+        if (!cardTextEl) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const range = document.createRange();
+        range.selectNodeContents(cardTextEl);
+
+        selection.removeAllRanges();
+        selection.addRange(range);
+    });
+
+}
 
 function dashboardScript() {
 
@@ -392,6 +429,7 @@ function dashboardScript() {
     }
 
     activateDownloadButtons();
+    interceptSelectAll();
 }
 
 export { dashboardScript, downloadText, formatToYYYYMMDD, createCardFromTemplate, activateDownloadButtons };
