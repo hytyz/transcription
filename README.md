@@ -1,23 +1,23 @@
 # ytyz transcriber
-a small, self-hosted application for diarized audio transcription with a web API, an S3-compatible storage API, authentication, and a reverse-proxy gateway. it exposes HTTP endpoints for uploading audio, tracking transcription status over websocket, storing results in object storage, and managing users with JWT cookies
+a small, self-hosted application for diarized audio transcription with a web api, an s3-compatible storage api, authentication, and a reverse-proxy gateway. it exposes http endpoints for uploading audio, tracking transcription status over websocket, storing results in object storage, and managing users with jwt cookies
 
 ## architecture
-- gateway API: reverse proxy for a single origin and CORS surface
-- auth API: user management; PBKDF2 password hashing; RS256 JWT in httponly cookies; users stored in a sqlite db
-- transcription API: FastAPI service that runs whisperX + pyannote for diarization on (only nvidia) GPU; streams status updates over websocket; saves transcripts to S3.
-- S3 API: bun server that wraps an S3-compatible endpoint for queue files and transcripts
+- gateway api: reverse proxy for a single origin and cors surface
+- auth api: user management; pbkdf2 password hashing; rs256 jwt in httponly cookies; users stored in a sqlite db
+- transcription api: fastapi service that runs whisperX + pyannote for diarization on (only nvidia) gpu; streams status updates over websocket; saves transcripts to s3.
+- s3 api: bun server that wraps an s3-compatible endpoint for queue files and transcripts
 
 ## endpoints
-### gateway API
+### gateway api
 `/`
 - proxies:
-  - `/auth` to auth API
-  - `/api` to transcription API
-  - `/s3` to S3 API
+  - `/auth` to auth api
+  - `/api` to transcription api
+  - `/s3` to s3 api
   - `/` to the web app
 - `GET /__usage`
 
-### auth API
+### auth api
 `/auth`
 - `POST /create`
 - `POST /login`
@@ -30,12 +30,12 @@ a small, self-hosted application for diarized audio transcription with a web API
 - `DELETE /transcriptions/delete`
 - `GET /transcriptions/`
 
-### transcription API
+### transcription api
 `/api`
 - `POST /upload` 
 - `WS /ws/status`
 
-### S3 API
+### s3 api
 `/s3`
 - `POST /queue`
 - `POST /transcriptions`

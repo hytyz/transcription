@@ -131,7 +131,7 @@ async function deleteTranscription(jobid, card) {
     console.log(`deleted transcription ${jobid} from db and s3`);
 }
 
-async function openModifyModal(jobid, currentText) { 
+async function openModifyModal(jobid, currentText) {
     // browsers love caching stuff
     document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
     // extract unique speakers from lines: [hh:mm:ss] SPEAKER:
@@ -168,7 +168,6 @@ async function openModifyModal(jobid, currentText) {
         tableBody.appendChild(tr);
     });
 
-    // when user clicks apply, process renaming
     applyBtn.addEventListener("click", async () => {
         // collect replacements
         const inputs = tableBody.querySelectorAll("input[data-old]");
@@ -180,7 +179,7 @@ async function openModifyModal(jobid, currentText) {
 
             if (newLabel) {
                 if (!/^[A-Za-z0-9 ]+$/.test(newLabel)) {
-                    alert(`invalid speaker name: "${newLabel}" -- letters, numbers, spaces only`);
+                    alert(translate("modal.error.invalidSpeakerPrefix") + " " + newLabel + " " + translate("modal.error.invalidSpeakerSuffix"));
                     document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
                     return;
                 }
@@ -188,15 +187,12 @@ async function openModifyModal(jobid, currentText) {
             }
         });
 
-
-        // if nothing provided, do nothing
         if (Object.keys(replacements).length === 0) {
             alert(translate("modal.error.dataValidation"));
             document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
             return;
         }
 
-        // build updated transcript
         let updatedText = currentText;
         for (const [oldSp, newSp] of Object.entries(replacements)) {
             const re = new RegExp(`\\b${oldSp}\\b`, "g");
@@ -241,10 +237,10 @@ async function openModifyModal(jobid, currentText) {
 
                 if (bodyEl && bodyEl.classList.contains("expanded")) {
                     snippetEl.textContent = updatedText;
-                    if (expandBtn) expandBtn.textContent = translate("file.expand");
+                    if (expandBtn) expandBtn.textContent = translate("file.collapse");
                 } else {
                     snippetEl.textContent = snippetPreview;
-                    if (expandBtn) expandBtn.textContent = translate("file.collapse");
+                    if (expandBtn) expandBtn.textContent = translate("file.expand");
                 }
             }
         }
@@ -264,22 +260,20 @@ async function openModifyModal(jobid, currentText) {
 
 function activateDownloadButtons() {
     document.addEventListener("click", (e) => {
-        // single event listener is a clean pattern imo
         const downloadBtn = e.target.closest(".download-button");
         const deleteBtn = e.target.closest(".delete-button");
         const modifyBtn = e.target.closest(".edit-button");
 
-        // download button
         if (downloadBtn) {
             const card = downloadBtn.closest(".file-card");
             if (!card) return;
 
             const text = card.dataset.fullText || "";
-            const filename = card.dataset.downloadName || "transcript";
+            const filename = card.dataset.downloadName || translate("file.defaultDownloadName");
             downloadText(text, filename);
             return;
         }
-        // delete btn
+
         if (deleteBtn) {
             const card = deleteBtn.closest(".file-card");
             if (!card) return;
@@ -308,10 +302,8 @@ function interceptSelectAll() {
     // last click location
     document.addEventListener("mousedown", (e) => {
         lastClickInsideCard = e.target.closest(".file-card-body") || null;
-        // console.log(e.target.closest(".file-card-body"))
     });
 
-    // console.log("select all interception")
     document.addEventListener("keydown", (e) => {
         const isSelectAll = (e.key.toLowerCase() === "a" && (e.ctrlKey || e.metaKey));
         if (!isSelectAll) return;
@@ -320,7 +312,6 @@ function interceptSelectAll() {
 
         const selection = window.getSelection();
 
-        // prefer expanded text if expanded fallback to snippet
         const cardTextEl =
             lastClickInsideCard.querySelector(".file-card-body.expanded")
             || lastClickInsideCard.querySelector(".file-card-snippet");
@@ -379,7 +370,7 @@ function dashboardScript() {
             setupInfiniteScroll();
         } catch (e) {
             console.error("Failed to load metadata", e);
-            container.innerHTML = `<p>error loading transcriptions.</p>`;
+            container.innerHTML = `<p>${translate("dashboard.errorLoading")}</p>`;
         }
     }
 

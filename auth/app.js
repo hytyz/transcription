@@ -5,7 +5,6 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
-// const path = require('path');
 
 const app = express();
 app.use(bodyParser.json());
@@ -18,7 +17,6 @@ const DB_PATH = process.env.DB_PATH;
 const PRIVATE_KEY_PATH = process.env.PRIVATE_KEY_PATH;
 const PUBLIC_KEY_PATH = process.env.PUBLIC_KEY_PATH;
 const JWT_EXP_SECONDS = parseInt(process.env.JWT_EXP_SECONDS, 10);
-// const INTERNAL_TOKEN = process.env.INTERNAL_TOKEN;
 
 const PRIVATE_KEY = fs.readFileSync(PRIVATE_KEY_PATH, 'utf8');
 const PUBLIC_KEY = fs.readFileSync(PUBLIC_KEY_PATH, 'utf8');
@@ -45,7 +43,7 @@ async function seedSampleUsers() {
 
                 stmt.run(u.email, hash, salt, err => {
                     if (!err) {
-                        console.log(`Seeded sample user: ${u.email}`);
+                        console.log(`seeded sample user: ${u.email}`);
                     }
                     resolve();
                 });
@@ -76,9 +74,9 @@ db.serialize(() => {
 
     // look at this absolutely professional use of .then and .catch
     seedSampleUsers().then(() => {
-        console.log("Sample users seeding complete.");
+        console.log("sample users seeding complete.");
     }).catch(err => {
-        console.error("Error seeding sample users:", err);
+        console.error("error seeding sample users:", err);
     });
 
 });
@@ -140,9 +138,7 @@ function verifyJwt(token) {
         if (payload.exp && Math.floor(Date.now() / 1000) > payload.exp) throw new Error('token expired');
 
         return { valid: true, payload };
-    } catch (err) {
-        return { valid: false, error: err.message || String(err) };
-    }
+    } catch (err) { return { valid: false, error: err.message || String(err) }; }
 }
 
 function genSalt(len = 16) { return crypto.randomBytes(len).toString('hex'); }
@@ -168,52 +164,22 @@ app.use((req, res, next) => {
     next();
 });
 
-// // TODO deprecate
-// function requireInternalToken(req, res, next) {
-//     const token = req.header('x-internal-token') || req.query.token;
-//     const responseMessage = 'Unauthorized (internal)' + INTERNAL_TOKEN;
-//     if (!token || token !== INTERNAL_TOKEN) return res.status(401).json({ error: responseMessage });
-//     next();
-// }
-
-// app.post('/create', async (req, res) => {
-//     const { email, password } = req.body || {};
-//     if (!email || !password) return res.status(400).json({ error: 'email and password required' });
-
-//     const salt = genSalt();
-//     let password_hash;
-//     try { password_hash = await hashPassword(password, salt); } catch (err) {
-//         return res.status(500).json({ error: 'hashing failure' });
-//     }
-
-//     const stmt = db.prepare('INSERT INTO users(email, password_hash, salt, api_usage) VALUES(?,?,?,0)');
-//     stmt.run(email, password_hash, salt, function (err) {
-//         if (err) {
-//             if (err.message && err.message.includes('UNIQUE')) { return res.status(409).json({ error: 'user already exists' }); }
-//             return res.status(500).json({ error: 'db error', details: err.message });
-//         }
-//         return res.status(201).json({ ok: true, email });
-//     });
-//     stmt.finalize();
-// });
-
 app.post('/create', async (req, res) => {
     const { email, password } = req.body || {};
-    if (!email || !password) {return res.status(400).json({ error: 'email and password required' });}
+    if (!email || !password) { return res.status(400).json({ error: 'email and password required' }); }
 
     const salt = genSalt();
     let password_hash;
-    try {password_hash = await hashPassword(password, salt);} 
-    catch (err) {return res.status(500).json({ error: 'hashing failure' });}
+    try { password_hash = await hashPassword(password, salt); }
+    catch (err) { return res.status(500).json({ error: 'hashing failure' }); }
     const stmt = db.prepare(
         'INSERT INTO users(email, password_hash, salt, api_usage) VALUES(?,?,?,0)'
     );
     stmt.run(email, password_hash, salt, function (err) {
         if (err) {
-            if (err.message && err.message.includes('UNIQUE')) {return res.status(409).json({ error: 'user already exists' });}
+            if (err.message && err.message.includes('UNIQUE')) { return res.status(409).json({ error: 'user already exists' }); }
             return res.status(500).json({ error: 'db error', details: err.message });
         }
-        // ---- AUTO LOGIN HERE ----
         const token = signJwt({ email }, { expSeconds: JWT_EXP_SECONDS });
 
         res.cookie('token', token, {
@@ -223,7 +189,6 @@ app.post('/create', async (req, res) => {
             maxAge: JWT_EXP_SECONDS * 1000,
             path: '/'
         });
-        // return res.status(200).json({ ok: true, email, autoLogin: true });
         return res.json({ ok: true });
 
     });
@@ -235,12 +200,10 @@ app.post('/login', async (req, res) => {
     if (!req.is('application/json')) {
         return res.status(415).json({ error: 'content-type must be application/json' });
     }
-    // console.log(req.body);
-    const { email, password } = req.body; //|| {};
-    // onsole.log(email, password);
+
+    const { email, password } = req.body;
 
     if (!email || !password) return res.status(400).json({ error: 'email and password required' });
-    // console.log("got to the third console log");
 
     db.get('SELECT email, password_hash, salt FROM users WHERE email = ?', [email], async (err, row) => {
         if (err) return res.status(500).json({ error: 'db error' });
@@ -308,12 +271,11 @@ app.get('/usage', (req, res) => {
     if (!token) return res.status(401).json({ error: 'no token' });
     const validity = verifyJwt(token);
     if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
-    
-    // check if user is admin@admin.com
+
     if (validity.payload.email !== 'admin@admin.com') {
         return res.status(403).json({ error: 'forbidden' });
     }
-    
+
     db.all('SELECT email, api_usage FROM users ORDER BY email', [], (err, rows) => {
         if (err) return res.status(500).json({ error: 'db error' });
         return res.json({ users: rows });
@@ -343,7 +305,7 @@ app.post('/transcriptions/add', (req, res) => {
     const createdAt = Math.floor(Date.now() / 1000);
 
     db.serialize(() => {
-        //insert transcription record
+        // insert transcription record
         const stmt1 = db.prepare(
             'INSERT INTO transcriptions(jobid, email, created_at, filename) VALUES(?,?,?,?)'
         );
@@ -355,7 +317,7 @@ app.post('/transcriptions/add', (req, res) => {
                 return res.status(500).json({ error: 'db error', details: err.message });
             }
 
-            //increment usage when a new transcription is added
+            // increment usage when a new transcription is added
             const stmt2 = db.prepare(
                 'UPDATE users SET api_usage = api_usage + 1 WHERE email = ?'
             );
@@ -393,9 +355,9 @@ app.delete('/transcriptions/delete', (req, res) => {
 
     const stmt = db.prepare('DELETE FROM transcriptions WHERE jobid = ? AND email = ?');
     stmt.run(jobid, email, function (err) {
-      if (err) return res.status(500).json({ error: 'db error' });
-      if (this.changes === 0) return res.status(404).json({ error: 'transcription not found' });
-      return res.json({ ok: true, jobid });
+        if (err) return res.status(500).json({ error: 'db error' });
+        if (this.changes === 0) return res.status(404).json({ error: 'transcription not found' });
+        return res.json({ ok: true, jobid });
     });
     stmt.finalize();
 });
@@ -419,7 +381,7 @@ app.get('/transcriptions/', (req, res) => {
 });
 
 
-app.get('/health', (req, res) => res.json({ ok: true })); // deprecate when fully self hosted
+app.get('/health', (req, res) => res.json({ ok: true }));
 
 app.listen(PORT, host = '0.0.0.0', () => { console.log(`auth service running on port ${PORT}`); });
 

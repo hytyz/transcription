@@ -35,6 +35,7 @@
   "dashboard.delete.s3FailedPrefix": "s3 deletion failed:",
   "dashboard.delete.s3NetworkError": "network error when deleting from s3",
   
+  "file.defaultDownloadName": "transcript",
   "file.namePlaceholder": "filename",
   "file.datePlaceholder": "YYYYMMDD",
   "file.expand": "expand",
@@ -47,6 +48,8 @@
   "modal.apply": "apply",
   "modal.error.dataValidation": "please enter at least one new label",
   "modal.error.updateFile": "failed to update file",
+  "modal.error.invalidSpeakerPrefix": "invalid speaker name:",
+"modal.error.invalidSpeakerSuffix": "letters, numbers, spaces only",
 
   "transcribe.error.start": "error starting transcription",
   "transcribe.error.noJobId": "no job id returned.",

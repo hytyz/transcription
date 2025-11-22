@@ -8,7 +8,7 @@ import dotenv from "dotenv";
 import path from "path";
 dotenv.config();
 
-//config
+// config
 const s3 = new S3Client({
   region: process.env.AWS_REGION!,
   endpoint: process.env.AWS_ENDPOINT_URL!,
@@ -28,7 +28,7 @@ function json(obj: any, status = 200) {
   });
 }
 
-//server
+// server
 const app = Bun.serve({
   port: 8080,
   async fetch(req) {
@@ -62,7 +62,7 @@ const app = Bun.serve({
       return json({ status: "ok", jobid, key });
     }
 
-    // POST /transcriptions — upload txt file under {jobid}.txt
+    // POST /transcriptions
     if (req.method === "POST" && pathname === "/transcriptions") {
       const form = await req.formData();
       const file = form.get("file") as File | null;
@@ -89,7 +89,7 @@ const app = Bun.serve({
       return json({ status: "ok", jobid, key });
     }
 
-    // GET /queue/:jobid — return audio file
+    // GET /queue/:jobid
     const qMatch = pathname.match(/^\/queue\/(.+)$/);
     if (req.method === "GET" && qMatch) {
       const jobid = qMatch[1];
@@ -108,15 +108,13 @@ const app = Bun.serve({
               "Content-Disposition": `attachment; filename="${jobid}.${ext}"`,
             },
           });
-        } catch {
-          // ignore, try next
-        }
+        } catch { }
       }
 
       return json({ status: "error", message: "file not found" }, 404);
     }
 
-    // Put /transcriptions — upload txt file under {jobid}.txt
+    // PUT /transcriptions
     if (req.method === "PUT" && pathname.startsWith("/transcriptions")) {
       const form = await req.formData();
       const file = form.get("file") as File | null;
@@ -143,7 +141,7 @@ const app = Bun.serve({
       return json({ status: "ok", jobid, key, message: "updated in place" });
     }
 
-    // DELETE /transcriptions/:jobid — delete transcription file
+    // DELETE /transcriptions/:jobid
     if (req.method === "DELETE" && pathname.startsWith("/transcriptions")) {
       const m = pathname.match(/^\/transcriptions\/([^/]+)$/);
       let Key: string | null = null;
@@ -166,10 +164,9 @@ const app = Bun.serve({
       } catch {
         return json({ status: "error", message: "file not found" }, 404);
       }
-      // return json({ status: "error", message: "file not found" }, 404);
     }
 
-    // GET /transcriptions/:jobid —
+    // GET /transcriptions/:jobid
     const tMatch = pathname.match(/^\/transcriptions\/(.+)$/);
     if (req.method === "GET" && tMatch) {
       const jobid = tMatch[1];
