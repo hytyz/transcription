@@ -74,6 +74,11 @@ async function router() {
 
 // intercept link clicks
 document.addEventListener("click", (e) => {
+  if (e.target.matches("[data-prevent-navigate]")) {
+    e.preventDefault();
+    return;
+  }
+
   if (e.target.matches("[data-link]")) {
     e.preventDefault();
     console.log(e.target.href)
