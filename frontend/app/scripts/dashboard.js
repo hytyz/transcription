@@ -328,7 +328,7 @@ function interceptSelectAll() {
         // console.log(e.target.closest(".file-card-body"))
     });
 
-    console.log("select all interception")
+    // console.log("select all interception")
     document.addEventListener("keydown", (e) => {
         const isSelectAll = (e.key.toLowerCase() === "a" && (e.ctrlKey || e.metaKey));
         if (!isSelectAll) return;
