@@ -164,7 +164,7 @@ async function openModifyModal(jobid, currentText) {
         const tr = document.createElement("tr");
         tr.innerHTML = `
             <td>${sp}</td>
-            <td><input type="text" placeholder="polina" data-old="${sp}" /></td>
+            <td><input type="text" placeholder="ytyz" data-old="${sp}" /></td>
         `;
         tableBody.appendChild(tr);
     });
