@@ -6,6 +6,7 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
     const temp = document.createElement("div");
     temp.innerHTML = templateHtml.trim();
     const card = temp.firstElementChild;
+    card.dataset.jobid = jobid;
 
     const nameEl = card.querySelector("#file-card-name");
     const dateEl = card.querySelector(".file-card-date");
@@ -19,7 +20,7 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
     let fullText = "";
 
     const cacheKey = `transcription_${jobid}`;
-    const cached = localStorage.getItem(cacheKey);
+    const cached = sessionStorage.getItem(cacheKey);
 
     if (cached) {
         fullText = cached;
@@ -27,7 +28,7 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
         try {
             const res = await fetch(`${BASE_URL}/s3/transcriptions/${jobid}`);
             fullText = res.ok ? await res.text() : "(file missing)";
-            localStorage.setItem(cacheKey, fullText);
+            sessionStorage.setItem(cacheKey, fullText);
         } catch { fullText = "(error fetching file)"; }
     }
 
@@ -132,26 +133,158 @@ async function deleteTranscription(jobid, card) {
     console.log(`Deleted transcription ${jobid} from DB + S3`);
 }
 
-// function activateDownloadButtons() {
-//     document.addEventListener("click", (e) => {
+async function openModifyModal(jobid, currentText) {
+    console.log("opening Modal")
+    // Extract unique speakers from lines: [hh:mm:ss] SPEAKER:
+    const lineRegex = /^\[\d{2}:\d{2}:\d{2}\]\s+([^:]+):/gm;
+    const speakerSet = new Set();
+    let match;
 
-//         if (e.target.closest(".download-button")) {
-//             const card = e.target.closest(".file-card");
-//             if (!card) return;
+    while ((match = lineRegex.exec(currentText)) !== null) {
+        speakerSet.add(match[1].trim());
+    }
 
-//             const text = card.dataset.fullText || "";
-//             const filename = card.dataset.downloadName || "transcript";
-//             downloadText(text, filename);
-//         }
-//     });
-// }
+    const speakers = [...speakerSet];
+
+    // 2. Load the modal template
+    const modalHtml = await fetch("/templates/modal.html").then(r => r.text());
+
+    // 3. Insert modal into DOM
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = modalHtml.trim();
+    const modal = wrapper.firstElementChild;
+    document.body.appendChild(modal);
+
+    const tableBody = modal.querySelector("#speakers-modal tbody");
+    const applyBtn = modal.querySelector("#relabel-speakers-btn");
+
+    // 4. Populate rows: old label | input(new label)
+    tableBody.innerHTML = "";
+    speakers.forEach(sp => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${sp}</td>
+            <td><input type="text" placeholder="polina" data-old="${sp}" /></td>
+        `;
+        tableBody.appendChild(tr);
+    });
+
+    // 5. When user clicks "Apply", process replacements
+    applyBtn.addEventListener("click", async () => {
+        // Collect replacements
+        const inputs = tableBody.querySelectorAll("input[data-old]");
+        const replacements = {};
+
+        // inputs.forEach(inp => {
+        //     const oldLabel = inp.dataset.old;
+        //     const newLabel = inp.value.trim();
+        //     if (newLabel) {
+        //         replacements[oldLabel] = newLabel;
+        //     }
+        // });
+        inputs.forEach(inp => {
+            const oldLabel = inp.dataset.old;
+            const newLabel = inp.value.trim();
+
+            if (newLabel) {
+                if (!/^[A-Za-z0-9 ]+$/.test(newLabel)) {
+                    alert(`Invalid speaker name: "${newLabel}". Letters, numbers, spaces only.`);
+                    return;
+                }
+                replacements[oldLabel] = newLabel;
+            }
+        });
+
+
+        // if nothing provided, do nothing
+        if (Object.keys(replacements).length === 0) {
+            alert("Please enter at least one new label.");
+            return;
+        }
+
+        // 6. build updated transcript
+        let updatedText = currentText;
+        for (const [oldSp, newSp] of Object.entries(replacements)) {
+            const re = new RegExp(`\\b${oldSp}\\b`, "g");
+            updatedText = updatedText.replace(re, newSp);
+        }
+
+        // 7. PUT updated file to S3 microservice (multipart/form-data)
+        try {
+            const form = new FormData();
+            form.append("jobid", jobid);
+            form.append("file", new Blob([updatedText], { type: "text/plain" }), `${jobid}.txt`);
+
+            const resp = await fetch(`${BASE_URL}/s3/transcriptions`, {
+                method: "PUT",
+                body: form
+            });
+
+            if (!resp.ok) {
+                alert("Failed to update file");
+                return;
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error updating file.");
+            return;
+        }
+
+
+        // 8. Write to sessionStorage cache
+        sessionStorage.setItem(`transcription_${jobid}`, updatedText);
+
+        // 9. Update card.dataset.fullText live
+        const card = document.querySelector(`.file-card[data-jobid="${jobid}"]`);
+        if (card) {
+            card.dataset.fullText = updatedText;
+
+            // update snippet preview if card is expanded or collapsed
+            const snippetEl = card.querySelector(".file-card-snippet");
+            const expandBtn = card.querySelector(".file-card-expand");
+            const bodyEl = card.querySelector(".file-card-body");
+
+            if (snippetEl) {
+                const snippetPreview = updatedText.length > 500
+                    ? updatedText.slice(0, 500) + "…"
+                    : updatedText;
+
+                if (bodyEl && bodyEl.classList.contains("expanded")) {
+                    // currently expanded ⇒ show full text
+                    snippetEl.textContent = updatedText;
+                    if (expandBtn) expandBtn.textContent = "collapse";
+                } else {
+                    // collapsed ⇒ show snippet only
+                    snippetEl.textContent = snippetPreview;
+                    if (expandBtn) expandBtn.textContent = "expand";
+                }
+            }
+        }
+
+
+        window.location.reload();
+
+        // 10. Close modal
+        modal.remove();
+    });
+
+    // Optional: close modal on background click
+    modal.addEventListener("click", (e) => {
+        if (e.target.classList.contains("modal-overlay") || e.target.classList.contains("cancel-btn")) {
+            e.preventDefault();
+            modal.remove();
+        } 
+
+    });
+}
+
 
 function activateDownloadButtons() {
     document.addEventListener("click", (e) => {
         // single event listener is a clean pattern imo
         const downloadBtn = e.target.closest(".download-button");
         const deleteBtn = e.target.closest(".delete-button");
-        const modifyBtn = e.target.closest(".modify-button");
+        const modifyBtn = e.target.closest(".edit-button");
 
         // download button
         if (downloadBtn) {
@@ -169,7 +302,7 @@ function activateDownloadButtons() {
             if (!card) return;
 
             const jobid = card.dataset.jobid;
-            deleteTranscription(jobid, card);   
+            deleteTranscription(jobid, card);
             return;
         }
         // update speaker names 
@@ -179,7 +312,7 @@ function activateDownloadButtons() {
 
             const jobid = card.dataset.jobid;
             const currentText = card.dataset.fullText;
-            // openModifyModal(jobid, currentText); // your function
+            openModifyModal(jobid, currentText);
             return;
         }
     });
