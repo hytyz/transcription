@@ -24,12 +24,10 @@
     width: 90%;
 }
 
-.upload-card {
-    margin: var(--space-xl) auto 0;
-}
-
 .upload-card-inner {
     padding: var(--space-md) var(--space-lg);
+    background-color: var(--grey);
+    border: var(--border-width-thick) solid var(--black);
 }
 
 .upload-card-header {
@@ -45,6 +43,8 @@
 
 .file-card-inner {
     padding: var(--space-md) var(--space-lg) var(--space-xs) var(--space-lg);
+    background-color: var(--grey);
+    border: var(--border-width-thick) solid var(--black);
 }
 
 .file-card-header {
