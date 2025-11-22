@@ -24,4 +24,8 @@
     <div id="app"></div>
 </body>
   <script type="module" src="router.js"></script>
+  <script type="module">
+    import init, { start } from "./ui.js";
+    init().then(() => start());
+    </script>
 </html>
