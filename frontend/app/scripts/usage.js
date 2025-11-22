@@ -9,7 +9,7 @@ function setupUsagePage() {
             let data;
             return data = await res.json();
         } catch (e) {
-            console.error("Failed to load usage", e);
+            console.error("failed to load usage", e);
         }
     }
     const usageTable = document.getElementById('usage-table');

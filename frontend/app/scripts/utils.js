@@ -1,3 +1,5 @@
+import { translate } from "./i18n.js";
+
 function applyAuthUI(authState) {
     const authedElements = document.querySelectorAll("[data-if-auth]")
     const guestElements = document.querySelectorAll("[data-if-guest]")
@@ -14,7 +16,7 @@ function updateAnchorHref(path) {
     if (path == "/dashboard") {
         let anchors = document.querySelectorAll("[data-dashboard-anchor1]")
         let anchor = anchors[0]
-        anchor.innerHTML = "upload"
+        anchor.innerHTML = translate("navbar.upload");
         anchor.href = "/upload"
     }
 }

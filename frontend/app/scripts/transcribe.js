@@ -1,4 +1,5 @@
 import { navigateTo } from "../router.js";
+import { translate } from "./i18n.js";
 
 const BASE_URL = "https://polina-gateway.fly.dev"
 const api_url = `${BASE_URL}/api`;
@@ -45,14 +46,14 @@ function setupTranscribe() {
             const res = await fetch(`${gpuURL}/upload`, { method: "POST", body: formData, credentials: "include" });
 
             if (!res.ok) {
-                alert("error starting transcription " + res);
+                alert(translate("transcribe.error.start") + " " + res);
                 window.location.reload();
             }
 
             const data = await res.json();
 
             if (!data.jobid) {
-                alert("no job id returned.");
+                alert(translate("transcribe.error.noJobId") + " " + res);
                 window.location.reload();
             }
 
@@ -63,7 +64,7 @@ function setupTranscribe() {
 
         } catch (err) {
             console.error("error starting transcription:", err);
-            alert("error starting transcription " + err);
+            alert(translate("transcribe.error.start") + " " + res);
             window.location.reload();
         }
     }
@@ -90,7 +91,7 @@ function setupTranscribe() {
 
             if (msg.status === "error") {
                 ws.close();
-                alert("Transcription failed: " + msg.error);
+                alert(t("transcribe.error.failedPrefix") + " " + msg.error);
             }
         };
 

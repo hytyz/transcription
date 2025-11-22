@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ytyz transcriber</title>
-    <title>ytyz transcriber</title>
     <link rel="stylesheet" href="./css/style.css">
     <link rel="icon" type="image/x-icon" href="./favicon.ico">
     <link rel="icon" type="image/x-icon" href="./favicon.ico">
@@ -18,11 +17,11 @@
             <img class="logo" src="/img/logo.png">
         </a>
         <nav class="navbar-links">
-            <a id="navbar-anchor1" data-if-guest data-link href="/login">login</a>
-            <a id="navbar-anchor1" data-dashboard-anchor1 data-if-auth data-link href="/dashboard">view files</a>
+            <a id="navbar-anchor1" data-if-guest data-link href="/login" data-i18n="navbar.login"></a>
+            <a id="navbar-anchor1" data-dashboard-anchor1 data-if-auth data-link href="/dashboard" data-i18n="navbar.viewFiles"></a>
             <span class="divider">|</span>
-            <a id="navbar-anchor2" data-if-guest data-link href="/register">register</a>
-            <a id="navbar-anchor2" data-if-auth data-logout>logout</a>
+            <a id="navbar-anchor2" data-if-guest data-link href="/register" data-i18n="navbar.register"></a>
+            <a id="navbar-anchor2" data-if-auth data-logout data-i18n="navbar.logout"></a>
         </nav>
     </header>
     <div id="app"></div>

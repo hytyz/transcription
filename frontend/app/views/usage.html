@@ -1,16 +1,16 @@
 <main class="container">
-  <h1>api usage</h1>
+  <h1 data-i18n="usage.title"></h1>
 
   <div id="usage-summary">
-    <p>Total API usage: <span id="total-api-calls">0</span></p>
-    <p>User: <span id="user-email"></span></p>
+    <p><span data-i18n="usage.summary.total"></span> <span id="total-api-calls">0</span></p>
+    <p><span data-i18n="usage.summary.user"></span> <span id="user-email"></span></p>
   </div>
 
   <table id="usage-table">
     <thead>
       <tr>
-        <th>email</th>
-        <th>usage count</th>
+        <th data-i18n="usage.table.emailHeader"></th>
+        <th data-i18n="usage.table.usageCountHeader"></th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -19,13 +19,13 @@
   <table id="api-table">
     <thead>
       <tr>
-        <th>endpoint</th>
-        <th>api calls</th>
+        <th data-i18n="usage.table.endpointHeader"></th>
+        <th data-i18n="usage.table.apiCallsHeader"></th>
       </tr>
     </thead>
     <tbody></tbody>
   </table>
 
   <p id="msg"></p>
-  <a id="usage-back-button" data-link="" href="/">back</a>
+  <a id="usage-back-button" data-link href="/" data-i18n="usage.link.back"></a>
 </main>

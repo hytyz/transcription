@@ -1,20 +1,20 @@
 <div class="auth-page">
   <main class="container auth-container">
-    <h1 class="auth-title">user login</h1>
+    <h1 class="auth-title" data-i18n="login.title"></h1>
     <p id="auth-error" class="auth-error"></p>
 
 
     <form id="auth-form" class="auth-form">
       <div class="form-row">
-        <label for="email">email:</label>
+        <label for="email" data-i18n="login.emailLabel"></label>
         <input type="email" id="email" required />
       </div>
       <div class="form-row">
-        <label for="password">password:</label>
+        <label for="password" data-i18n="login.passwordLabel"></label>
         <input type="password" id="password" required />
       </div>
-      <button type="submit" class="auth-button">login</button>
-      <a href="/register" data-link class="auth-switch-link">register</a>
+      <button type="submit" class="auth-button" data-i18n="login.submit"></button>
+      <a href="/register" data-link class="auth-switch-link" data-i18n="login.switchToRegister"></a>
     </form>
   </main>
 </div>
