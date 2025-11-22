@@ -20,11 +20,18 @@
 
 /* layout and box model -> typography -> visuals -> interactions */
 
-html { box-sizing: border-box; }
+html {
+    box-sizing: border-box;
+}
 
-*, *::before, *::after { box-sizing: inherit; }
+*,
+*::before,
+*::after {
+    box-sizing: inherit;
+}
 
-html, body {
+html,
+body {
     height: 100%;
     margin: 0;
     padding: 0;
@@ -36,13 +43,24 @@ body {
     background-color: var(--white);
 }
 
-button, input, textarea, select { font-family: inherit; }
+button,
+input,
+textarea,
+select {
+    font-family: inherit;
+}
 
-input[type="file"] { display: none; }
+input[type="file"] {
+    display: none;
+}
 
-.container, .upload-section,
-.auth-form, .form-row, .navbar,
-.file-card-footer, .file-card-header {
+.container,
+.upload-section,
+.auth-form,
+.form-row,
+.navbar,
+.file-card-footer,
+.file-card-header {
     display: flex;
     align-items: center;
 }
@@ -72,25 +90,33 @@ a {
     color: var(--black);
 }
 
-a:hover { text-decoration: underline; }
+a:hover {
+    text-decoration: underline;
+}
 
-a:focus-visible, button:focus-visible {
+a:focus-visible,
+button:focus-visible {
     outline: 2px solid var(--black);
     outline-offset: 2px;
 }
 
-.logo, .upload-card-inner, .file-card-inner,
-.auth-button, .drop-button {
+.logo,
+.upload-card-inner,
+.file-card-inner,
+.auth-button,
+.drop-button {
     background-color: var(--grey);
     border: 3px solid var(--black);
 }
 
-.file-card-body, #progress-bar {
+.file-card-body,
+#progress-bar {
     background-color: var(--white);
     border: 3px solid var(--black);
 }
 
-.drop-button, .auth-button {
+.drop-button,
+.auth-button {
     font-size: var(--font-size-lg);
     cursor: pointer;
     transition: background-color 0.15s ease;
@@ -109,18 +135,27 @@ a:focus-visible, button:focus-visible {
     justify-content: center;
 }
 
-#upload-progress-card { margin: 0; }
+#upload-progress-card {
+    margin: 0;
+}
 
-.upload-card, .files-list {
+.upload-card,
+.files-list {
     max-width: 50rem;
     width: 90%;
 }
 
-.upload-card { margin: var(--space-xl) auto 0;}
+.upload-card {
+    margin: var(--space-xl) auto 0;
+}
 
-.upload-card-inner { padding: var(--space-md) var(--space-lg); }
+.upload-card-inner {
+    padding: var(--space-md) var(--space-lg);
+}
 
-.upload-card-header { margin-bottom: var(--space-md); }
+.upload-card-header {
+    margin-bottom: var(--space-md);
+}
 
 .upload-card-body {
     align-items: center;
@@ -129,7 +164,9 @@ a:focus-visible, button:focus-visible {
     flex-wrap: wrap;
 }
 
-#upload-file-size { min-width: var(--space-2xl); }
+#upload-file-size {
+    min-width: var(--space-2xl);
+}
 
 #progress-bar {
     -webkit-appearance: none;
@@ -155,9 +192,17 @@ a:focus-visible, button:focus-visible {
 }
 
 @keyframes progress-animation {
-    0% { transform: translateX(-100%) scaleX(0.3); }
-    50% { transform: translateX(20%) scaleX(0.7); }
-    100% { transform: translateX(100%) scaleX(0.3); }
+    0% {
+        transform: translateX(-100%) scaleX(0.3);
+    }
+
+    50% {
+        transform: translateX(20%) scaleX(0.7);
+    }
+
+    100% {
+        transform: translateX(100%) scaleX(0.3);
+    }
 }
 
 .drop-button {
@@ -165,7 +210,8 @@ a:focus-visible, button:focus-visible {
     max-width: 50rem;
 }
 
-.drop-button:hover, .auth-button:hover {
+.drop-button:hover,
+.auth-button:hover {
     background-color: var(--white);
 }
 
@@ -205,7 +251,11 @@ a:focus-visible, button:focus-visible {
     text-align: center;
 }
 
-.navbar, .file-card-header, .file-card-footer { justify-content: space-between; }
+.navbar,
+.file-card-header,
+.file-card-footer {
+    justify-content: space-between;
+}
 
 .navbar {
     position: fixed;
@@ -216,7 +266,9 @@ a:focus-visible, button:focus-visible {
     padding: var(--space-sm) var(--space-lg);
 }
 
-.auth-page .navbar-links { display: none; }
+.auth-page .navbar-links {
+    display: none;
+}
 
 .navbar-links a {
     font-size: var(--font-size);
@@ -224,10 +276,12 @@ a:focus-visible, button:focus-visible {
 }
 
 
-.transcript-container { margin-top: var(--space-2xl); }
+.transcript-container {
+    margin-top: var(--space-2xl);
+}
 
 .file-card-expand,
-.file-buttons > * {
+.file-buttons>* {
     padding: 0;
     font-size: var(--font-size);
     border: none;
@@ -235,7 +289,7 @@ a:focus-visible, button:focus-visible {
     cursor: pointer;
 }
 
-.file-buttons > * {
+.file-buttons>* {
     width: var(--space-xl);
     height: var(--space-xl);
     display: inline-block;
@@ -254,7 +308,9 @@ a:focus-visible, button:focus-visible {
     margin: 0 0 var(--space-md) 0;
 }
 
-.file-card-inner { padding: var(--space-md) var(--space-lg) var(--space-xs) var(--space-lg); }
+.file-card-inner {
+    padding: var(--space-md) var(--space-lg) var(--space-xs) var(--space-lg);
+}
 
 .file-card-header {
     margin-bottom: var(--space-sm);
@@ -323,7 +379,7 @@ table td {
     border: 0;
 }
 
-table > tbody > tr:first-child > td {
+table>tbody>tr:first-child>td {
     padding-top: var(--space-sm);
 }
 
@@ -341,8 +397,50 @@ table thead th {
     padding-bottom: var(--space-xl);
 }
 
+<<<<<<< HEAD
 .auth-error {
   display: none;
   margin-top: 0;
   font-size: var(--font-size);
+=======
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.55);
+    /* darken page a bit ???????? */
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    /* toward top */
+    padding-top: 80px;
+    /* push modal down from very top */
+    z-index: 9999;
+    /* i imagine it will be above the rest of the content now */
+}
+
+.modal {
+    background: white;
+    width: 90%;
+    max-width: 480px;
+    animation: modalFadeIn 0.25s ease-out;
+    border: #000;
+    /* won't apply skill issue border-width: var(--border-width-thick); */
+}
+
+/* love me a sexy fade in animation */
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+>>>>>>> af92d75 (style modal in an extremely majestic manner)
 }
