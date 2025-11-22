@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,20 +9,25 @@
     <link rel="icon" type="image/x-icon" href="./favicon.ico">
 
 </head>
+
 <body>
-<header id="navbar" class="navbar" style="display: none;">
-    <a data-link href="/" class="navbar-logo-link" style="z-index: 1;" >
-        <img class="logo" src="/css/logo.png">
-    </a>
-    <nav class="navbar-links">
-        <a id="navbar-anchor1" data-if-guest data-link href="/login">login</a>
-        <a  id="navbar-anchor1" data-dashboard-anchor1 data-if-auth data-link href="/dashboard">view files</a>
-        <span class="divider">|</span>
-        <a id="navbar-anchor2" data-if-guest data-link href="/register">register</a>
-        <a id="navbar-anchor2" data-if-auth data-logout>logout</a>
-    </nav>
-</header>
+    <header id="navbar" class="navbar" style="display: none;">
+        <a data-link href="/" class="navbar-logo-link" style="z-index: 1;">
+            <img class="logo" src="/img/logo.png">
+        </a>
+        <nav class="navbar-links">
+            <a id="navbar-anchor1" data-if-guest data-link href="/login">login</a>
+            <a id="navbar-anchor1" data-dashboard-anchor1 data-if-auth data-link href="/dashboard">view files</a>
+            <span class="divider">|</span>
+            <a id="navbar-anchor2" data-if-guest data-link href="/register">register</a>
+            <a id="navbar-anchor2" data-if-auth data-logout>logout</a>
+        </nav>
+    </header>
     <div id="app"></div>
+    <footer class="copyright">
+        <div>@ 2025 Polina Omelyantseva.</div>
+    </footer>
 </body>
-  <script type="module" src="router.js"></script>
+<script type="module" src="router.js"></script>
+
 </html>

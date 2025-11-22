@@ -1,0 +1,38 @@
+.auth-form,
+.form-row {
+    display: flex;
+    align-items: center;
+}
+
+.auth-form {
+    width: 100%;
+    max-width: 20rem;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.form-row label {
+    margin-right: var(--space-sm);
+    text-align: right;
+    width: 6rem;
+}
+
+.form-row input {
+    border: var(--border-width-thin) solid var(--black);
+    flex: 1;
+    font-size: var(--font-size);
+    padding: var(--space-xs);
+}
+
+input[type="file"] {
+    display: none;
+}
+
+input[type="text"] {
+    padding-bottom: var(--space-xs);
+    border: none;
+}
+
+input[type="text"]:focus {
+    outline: none;
+}

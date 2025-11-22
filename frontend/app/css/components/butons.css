@@ -1,0 +1,29 @@
+button:focus-visible {
+    outline: var(--border-width-thin) solid var(--black);
+    outline-offset: var(--border-width-thin);
+}
+
+.drop-button,
+.auth-button {
+    background-color: var(--grey);
+    border: var(--border-width-thick) solid var(--black);
+    font-size: var(--font-size-lg);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.auth-button {
+    margin-top: var(--space-sm);
+    padding: var(--space-sm) 0;
+    width: 100%;
+}
+
+.drop-button {
+    padding: var(--space-lg) var(--space-2xl);
+    max-width: 50rem;
+}
+
+.drop-button:hover,
+.auth-button:hover {
+    background-color: var(--white);
+}

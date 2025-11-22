@@ -1,0 +1,25 @@
+.navbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    top: var(--space-xl);
+    right: 0;
+    left: 0;
+    height: var(--space-md);
+    padding: var(--space-sm) var(--space-lg);
+}
+
+.auth-nav {
+    font-size: var(--font-size);
+    margin-top: var(--space-md);
+}
+
+.auth-page .navbar-links {
+    display: none;
+}
+
+.navbar-links a {
+    font-size: var(--font-size);
+    margin: 0 var(--space-xs);
+}

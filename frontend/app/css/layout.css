@@ -1,0 +1,36 @@
+.container,
+.upload-section {
+    display: flex;
+    align-items: center;
+}
+
+.container {
+    min-height: 100vh;
+    padding-top: var(--space-2xl);
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+.header {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-xl);
+    margin-bottom: var(--space-2xl);
+}
+
+.upload-section {
+    width: 100%;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.files-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    margin: 0 0 var(--space-md) 0;
+}
+
+.transcript-container {
+    margin-top: var(--space-2xl);
+}

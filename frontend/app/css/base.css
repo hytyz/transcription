@@ -1,0 +1,38 @@
+html {
+    box-sizing: border-box;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: inherit;
+}
+
+html,
+body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: "Courier New", monospace;
+    color: var(--black);
+    background-color: var(--white);
+}
+
+button,
+input,
+textarea,
+select {
+    font-family: inherit;
+}
+
+.logo {
+    background-color: var(--grey);
+    border: var(--border-width-thick) solid var(--black);
+    display: block;
+    height: var(--space-2xl);
+    width: var(--space-2xl);
+    object-fit: contain;
+}
