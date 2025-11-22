@@ -17,7 +17,7 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
 
     nameEl.textContent = filename;
     dateEl.textContent = new Date(createdAt * 1000).toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hourCycle: 'h23', hour: '2-digit', minute: '2-digit' }).replace(' at ', ' ');
-
+    expandBtn.textContent = translate("file.expand");
     let fullText = "";
 
     const cacheKey = `transcription_${jobid}`;
