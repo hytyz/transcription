@@ -134,7 +134,9 @@ async function deleteTranscription(jobid, card) {
 }
 
 async function openModifyModal(jobid, currentText) {
-    console.log("opening Modal")
+    // console.log("opening Modal")
+    // browsers love caching stuff
+    document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
     // Extract unique speakers from lines: [hh:mm:ss] SPEAKER:
     const lineRegex = /^\[\d{2}:\d{2}:\d{2}\]\s+([^:]+):/gm;
     const speakerSet = new Set();
@@ -266,16 +268,24 @@ async function openModifyModal(jobid, currentText) {
 
         // 10. Close modal
         modal.remove();
+
     });
 
     // Optional: close modal on background click
+    const overlay = document.querySelector(".modal-overlay");
+
     modal.addEventListener("click", (e) => {
         if (e.target.classList.contains("modal-overlay") || e.target.classList.contains("cancel-btn")) {
             e.preventDefault();
-            modal.remove();
+            // modal.remove()
+            // overlay.remove();
+            document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
+
         }
 
-    });
+    }, { once: true });
+
+    
 }
 
 
