@@ -397,13 +397,11 @@ table thead th {
     padding-bottom: var(--space-xl);
 }
 
-<<<<<<< HEAD
 .auth-error {
   display: none;
   margin-top: 0;
   font-size: var(--font-size);
-=======
-
+}
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -442,5 +440,4 @@ table thead th {
         opacity: 1;
         transform: translateY(0);
     }
->>>>>>> af92d75 (style modal in an extremely majestic manner)
 }
