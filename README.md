@@ -46,7 +46,7 @@ a small, self-hosted application for diarized audio transcription with a web API
 
 ## todo:
 1. self host (+ fix the flowchart + write a real readme)
-2. "All user message strings must be stored in a separate file" json on frontend
+2. finish readme and fix file cards
 
 ## stretch goals:
 1. rust ui
