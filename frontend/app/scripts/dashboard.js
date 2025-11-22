@@ -277,9 +277,9 @@ async function openModifyModal(jobid, currentText) {
     modal.addEventListener("click", (e) => {
         if (e.target.classList.contains("modal-overlay") || e.target.classList.contains("cancel-btn")) {
             e.preventDefault();
-            modal.remove()
-            overlay.remove();
-            // document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
+            // modal.remove()
+            // overlay.remove();
+            document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
 
         }
 
