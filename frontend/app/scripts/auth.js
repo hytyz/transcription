@@ -40,8 +40,6 @@ async function login() {
         const result = await loginUser(email, password);
         // console.log(result)
         if (result.ok) {
-            authError.textContent = "";
-            authError.style.display = "none"
             setAuthState(true)
             navigateTo('/dashboard');
         }
