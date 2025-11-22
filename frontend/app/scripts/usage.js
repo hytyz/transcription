@@ -22,8 +22,6 @@ function setupUsagePage() {
         document.getElementById('user-email').textContent = res.email
     });
 
-
-
     fetch(`${AUTH_URL}/usage`, { credentials: 'include', })
         .then(async (res) => {
             if (res.status !== 200) {
@@ -34,9 +32,7 @@ function setupUsagePage() {
             const data = await res.json();
             const tbody = usageTable.querySelector('tbody');
             if (!tbody) {
-                if (msg) {
-                    msg.textContent = 'failed to load usage: table body not found';
-                }
+                if (msg) { msg.textContent = translate("usage.error.tableBodyNotFound"); }
                 console.log('tbody element not found in usage table');
                 return;
             }
@@ -50,15 +46,11 @@ function setupUsagePage() {
             if (msg) msg.textContent = '';
         }).then(() => {
             fetch(`${BASE_URL}/__usage`).then(async (res) => {
-                if (res.status != 200) {
-                    console.log("failed")
-                }
+                if (res.status != 200) { console.log("failed") }
                 let data = await res.json()
                 const tbody = apiTable.querySelector('tbody');
                 if (!tbody) {
-                    if (msg) {
-                        msg.textContent = 'failed to display usage';
-                    }
+                    if (msg) { msg.textContent = translate("usage.error.display"); }
                     console.log('tbody element not found in usage table');
                     return;
                 }
@@ -73,9 +65,7 @@ function setupUsagePage() {
         }
         )
         .catch((err) => {
-            if (msg) {
-                msg.textContent = 'failed to load usage: ' + err.message;
-            }
+            if (msg) { msg.textContent = translate("usage.error.generalPrefix") + " " + err.message; }
             console.log(err.message);
         });
 }

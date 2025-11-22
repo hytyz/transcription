@@ -37,7 +37,7 @@ export async function navigateTo(url) {
 async function router() {
   const match = matchRoute(location.pathname);
 
-  // we have middleware at home gang
+  // we have middleware at home
   if (match.requiresAuth && !authState) {
     return navigateTo("/login");
   }
@@ -58,11 +58,8 @@ async function router() {
   let navbar = document.getElementById("navbar")
 
   // hide navbar on some pages
-  if (match.showNav === false) {
-    navbar.style.display = "none";
-  } else {
-    navbar.style.display = "flex";
-  }
+  if (match.showNav === false) { navbar.style.display = "none"; }
+  else { navbar.style.display = "flex"; }
 
   // update UI based on auth state
   applyAuthUI(authState);
@@ -99,10 +96,6 @@ await loadMessages("en");
 authState = await initAuth(AUTH_URL);
 router();
 
-
-function setAuthState(state){
-  authState = state
-}
-
+function setAuthState(state) { authState = state }
 
 export { setAuthState, BASE_URL, AUTH_URL }

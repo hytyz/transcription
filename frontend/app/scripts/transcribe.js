@@ -64,11 +64,11 @@ function setupTranscribe() {
 
         } catch (err) {
             console.error("error starting transcription:", err);
-            alert(translate("transcribe.error.start") + " " + res);
+            alert(translate("transcribe.error.start") + " " + err.message);
             window.location.reload();
         }
     }
-    
+
     function startWebSocket(jobid) {
         const ws = new WebSocket(`${WebSocketURL}`);
 
@@ -91,7 +91,7 @@ function setupTranscribe() {
 
             if (msg.status === "error") {
                 ws.close();
-                alert(t("transcribe.error.failedPrefix") + " " + msg.error);
+                alert(translate("transcribe.error.failedPrefix") + " " + msg.error);
             }
         };
 

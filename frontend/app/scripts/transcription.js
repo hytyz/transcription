@@ -6,7 +6,7 @@ async function setupTranscription() {
     if (!root) return;
     let currentJobId = sessionStorage.getItem("currentJobId");
     let currentFileName = sessionStorage.getItem("transcriptionFilename")
-    const transcriptionCard = await createCardFromTemplate(currentJobId, (Date.now()/1000), currentFileName)
+    const transcriptionCard = await createCardFromTemplate(currentJobId, (Date.now() / 1000), currentFileName)
     root.appendChild(transcriptionCard)
     activateDownloadButtons();
 }

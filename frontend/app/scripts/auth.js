@@ -77,7 +77,4 @@ async function register() {
     });
 }
 
-
 export { initAuth, loginUser, logoutUser, login, register };
-
-
