@@ -4,6 +4,7 @@ import { setupUsagePage } from "./scripts/usage.js";
 import { setupTranscribe } from "./scripts/transcribe.js";
 import { setupTranscription } from "./scripts/transcription.js";
 import { updateAnchorHref, applyAuthUI } from "./scripts/utils.js";
+import { loadMessages, applyTranslations, translate } from "./scripts/i18n.js";
 
 const viewCache = {}
 
@@ -45,7 +46,6 @@ async function router() {
 
   let html;
 
-
   // we have a cache for the html files
   if (viewCache[fileToLoad]) {
     html = viewCache[fileToLoad];
@@ -68,8 +68,10 @@ async function router() {
   applyAuthUI(authState);
   updateAnchorHref(match.path);
 
-  if (match.onload) match.onload();
+  applyTranslations(document);
+  document.title = translate("app.title", document.title);
 
+  if (match.onload) match.onload();
 }
 
 // intercept link clicks
@@ -93,6 +95,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("popstate", router);
 
 // first load
+await loadMessages("en");
 authState = await initAuth(AUTH_URL);
 router();
 

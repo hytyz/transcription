@@ -1,4 +1,5 @@
 import { BASE_URL, AUTH_URL } from "../router.js";
+import { translate } from "./i18n.js";
 
 async function createCardFromTemplate(jobid, createdAt, filename) {
     const templateHtml = await fetch("/templates/file.html").then(r => r.text());
@@ -27,9 +28,9 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
     } else {
         try {
             const res = await fetch(`${BASE_URL}/s3/transcriptions/${jobid}`);
-            fullText = res.ok ? await res.text() : "(file missing)";
+            fullText = res.ok ? await res.text() : translate("dashboard.fileMissing");
             sessionStorage.setItem(cacheKey, fullText);
-        } catch { fullText = "(error fetching file)"; }
+        } catch { fullText = translate("dashboard.errorFetchingFile"); }
     }
 
     const snippetPreview = fullText.length > 500 ? fullText.slice(0, 500) + "…" : fullText;
@@ -41,10 +42,10 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
 
         if (expanded) {
             snippetEl.textContent = fullText;
-            expandBtn.textContent = "collapse";
+            expandBtn.textContent = translate("file.collapse");
         } else {
             snippetEl.textContent = snippetPreview;
-            expandBtn.textContent = "expand";
+            expandBtn.textContent = translate("file.expand");
         }
     });
     card.dataset.jobid = jobid;
@@ -63,7 +64,7 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
 
 function formatToYYYYMMDD(date) {
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // months are zero indexed because javascript is the best language ever
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // months are zero indexed
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}${month}${day}`;
 }
@@ -84,9 +85,8 @@ function downloadText(text, filename) {
 }
 
 async function deleteTranscription(jobid, card) {
-    console.log("Deleting job:", jobid);
+    console.log("deleting job:", jobid);
 
-    // 1. delete from DB
     let dbRes;
     try {
         dbRes = await fetch(`${AUTH_URL}/transcriptions/delete`, {
@@ -100,15 +100,14 @@ async function deleteTranscription(jobid, card) {
 
         if (!dbRes.ok) {
             const err = await dbRes.json().catch(() => ({}));
-            alert("DB deletion failed: " + (err.error || dbRes.status));
+            alert(translate("dashboard.delete.dbFailedPrefix") + " " + (err.error || dbRes.status));
             return;
         }
     } catch (err) {
         console.error("DB delete error:", err);
-        alert("Network error when deleting from DB");
+        alert(translate("dashboard.delete.dbNetworkError"));
         return;
     }
-    // 2. delete from S3
     let s3Res;
     try {
         s3Res = await fetch(`${BASE_URL}/s3/transcriptions/${jobid}`, {
@@ -118,23 +117,21 @@ async function deleteTranscription(jobid, card) {
 
         if (!s3Res.ok) {
             const err = await s3Res.json().catch(() => ({}));
-            alert("S3 deletion failed: " + (err.message || s3Res.status));
+            alert(translate("dashboard.delete.s3FailedPrefix") + " " + (err.message || s3Res.status));
             return;
         }
     } catch (err) {
-        console.error("S3 delete error:", err);
-        alert("Network error when deleting from S3");
+        console.error("s3 delete error:", err);
+        alert(translate("dashboard.delete.s3NetworkError"));
         return;
     }
-    // 3. If both succeeded we remove card
     if (card) {
         card.remove();
     }
-    console.log(`Deleted transcription ${jobid} from DB + S3`);
+    console.log(`deleted transcription ${jobid} from db and s3`);
 }
 
-async function openModifyModal(jobid, currentText) {
-    // console.log("opening Modal")
+async function openModifyModal(jobid, currentText) { 
     // browsers love caching stuff
     document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
     // extract unique speakers from lines: [hh:mm:ss] SPEAKER:
@@ -151,7 +148,7 @@ async function openModifyModal(jobid, currentText) {
     //load the modal template
     const modalHtml = await fetch("/templates/modal.html").then(r => r.text());
 
-    //insert modal into DOM
+    //insert modal into dom
     const wrapper = document.createElement("div");
     wrapper.innerHTML = modalHtml.trim();
     const modal = wrapper.firstElementChild;
@@ -160,7 +157,7 @@ async function openModifyModal(jobid, currentText) {
     const tableBody = modal.querySelector("#speakers-modal tbody");
     const applyBtn = modal.querySelector("#relabel-speakers-btn");
 
-    // populate rows old label | new label input
+    // populate rows old label new label input
     tableBody.innerHTML = "";
     speakers.forEach(sp => {
         const tr = document.createElement("tr");
@@ -183,7 +180,7 @@ async function openModifyModal(jobid, currentText) {
 
             if (newLabel) {
                 if (!/^[A-Za-z0-9 ]+$/.test(newLabel)) {
-                    alert(`Invalid speaker name: "${newLabel}". Letters, numbers, spaces only.`);
+                    alert(`invalid speaker name: "${newLabel}" -- letters, numbers, spaces only`);
                     document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
                     return;
                 }
@@ -194,7 +191,7 @@ async function openModifyModal(jobid, currentText) {
 
         // if nothing provided, do nothing
         if (Object.keys(replacements).length === 0) {
-            alert("Please enter at least one new label.");
+            alert(translate("modal.error.dataValidation"));
             document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
             return;
         }
@@ -206,7 +203,7 @@ async function openModifyModal(jobid, currentText) {
             updatedText = updatedText.replace(re, newSp);
         }
 
-        // PUT updated file to S3 microservice 
+        // PUT updated file to s3 
         try {
             const form = new FormData();
             form.append("jobid", jobid);
@@ -218,25 +215,21 @@ async function openModifyModal(jobid, currentText) {
             });
 
             if (!resp.ok) {
-                alert("Failed to update file");
+                alert(translate("modal.error.updateFile"));
                 return;
             }
         } catch (err) {
             console.error(err);
-            alert("Error updating file.");
+            alert(translate("modal.error.updateFile"));
             return;
         }
 
-
-        // 8. write to sessionStorage cache
         sessionStorage.setItem(`transcription_${jobid}`, updatedText);
 
-        // 9. update card.dataset.fullText live
         const card = document.querySelector(`.file-card[data-jobid="${jobid}"]`);
         if (card) {
             card.dataset.fullText = updatedText;
 
-            // update snippet preview if card is expanded or collapsed
             const snippetEl = card.querySelector(".file-card-snippet");
             const expandBtn = card.querySelector(".file-card-expand");
             const bodyEl = card.querySelector(".file-card-body");
@@ -247,35 +240,23 @@ async function openModifyModal(jobid, currentText) {
                     : updatedText;
 
                 if (bodyEl && bodyEl.classList.contains("expanded")) {
-                    // currently expanded ⇒ show full text
                     snippetEl.textContent = updatedText;
-                    if (expandBtn) expandBtn.textContent = "collapse";
+                    if (expandBtn) expandBtn.textContent = translate("file.expand");
                 } else {
-                    // collapsed ⇒ show snippet only
                     snippetEl.textContent = snippetPreview;
-                    if (expandBtn) expandBtn.textContent = "expand";
+                    if (expandBtn) expandBtn.textContent = translate("file.collapse");
                 }
             }
         }
 
-
         window.location.reload();
-
-        // close modal
         modal.remove();
         document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
-
-
     });
-
-    // Optional: close modal on background click
-    const overlay = document.querySelector(".modal-overlay");
 
     modal.addEventListener("click", (e) => {
         if (e.target.classList.contains("modal-overlay") || e.target.classList.contains("cancel-btn")) {
             e.preventDefault();
-            // modal.remove()
-            // overlay.remove();
             document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
         }
 

@@ -1,0 +1,66 @@
+{
+  "app.title": "ytyz transcriber",
+
+  "navbar.login": "login",
+  "navbar.viewFiles": "view files",
+  "navbar.register": "register",
+  "navbar.logout": "logout",
+  "navbar.upload": "upload",
+
+  "home.title": "ytyz transcriber",
+  "home.transcribeButton": "transcribe recording",
+  "home.upload.filename": "filename",
+  "home.upload.defaultSize": "0 MB",
+
+  "login.title": "user login",
+  "login.emailLabel": "email:",
+  "login.passwordLabel": "password:",
+  "login.submit": "login",
+  "login.switchToRegister": "register",
+
+  "register.title": "create account",
+  "register.emailLabel": "email:",
+  "register.passwordLabel": "password:",
+  "register.submit": "register",
+  "register.switchToLogin": "login",
+
+  "dashboard.title": "view files",
+  "dashboard.emptyState": "no transcriptions found. click here to upload.",
+  "dashboard.errorLoading": "error loading transcriptions.",
+  "dashboard.fileMissing": "(file missing)",
+  "dashboard.errorFetchingFile": "(error fetching file)",
+
+  "dashboard.delete.dbFailedPrefix": "db deletion failed:",
+  "dashboard.delete.dbNetworkError": "network error when deleting from db",
+  "dashboard.delete.s3FailedPrefix": "s3 deletion failed:",
+  "dashboard.delete.s3NetworkError": "network error when deleting from s3",
+  
+  "file.namePlaceholder": "filename",
+  "file.datePlaceholder": "YYYYMMDD",
+  "file.expand": "expand",
+  "file.collapse": "collapse",
+
+  "modal.title": "edit speaker labels",
+  "modal.oldLabel": "old label",
+  "modal.newLabel": "new label",
+  "modal.cancel": "cancel",
+  "modal.apply": "apply",
+  "modal.error.dataValidation": "please enter at least one new label",
+  "modal.error.updateFile": "failed to update file",
+
+  "transcribe.error.start": "error starting transcription",
+  "transcribe.error.noJobId": "no job id returned.",
+  "transcribe.error.failedPrefix": "transcription failed:",
+
+  "usage.title": "api usage",
+  "usage.summary.total": "total api usage:",
+  "usage.summary.user": "user:",
+  "usage.table.emailHeader": "email",
+  "usage.table.usageCountHeader": "usage count",
+  "usage.table.endpointHeader": "endpoint",
+  "usage.table.apiCallsHeader": "api calls",
+  "usage.error.tableBodyNotFound": "failed to load usage: table body not found",
+  "usage.error.display": "failed to display usage",
+  "usage.error.generalPrefix": "failed to load usage:",
+  "usage.link.back": "back"
+}
