@@ -3,13 +3,25 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 
 const app = express();
 
+/**
+ * in-memory usage counter keyed by a coarse prefix or raw path
+ * { "/auth": 10, "/api": 21, "/s3": 44, "/": 105, "/health": 3 }
+ */
 const usageStats = {};  // { "/auth": 10, "/api": 21, "/s3": 44, "/": 105 }
 
+/**
+ * increments an in-memory counter for the given prefix or path
+ * this is process local, resets on restart
+ * @param {string} prefix
+ */
 function trackUsage(prefix) {
   if (!usageStats[prefix]) usageStats[prefix] = 0;
   usageStats[prefix]++;
 }
 
+/**
+ * cors with credentials and dynamic origin echo
+ */
 app.use((req, res, next) => {
   const origin = req.headers.origin || "*";
 
@@ -26,6 +38,18 @@ app.use((req, res, next) => {
   next();
 });
 
+/**
+ * factory for http-proxy-middleware instances
+ * for each proxied request it
+ *  bumps the usage counter for the logical prefix
+ *  rewrites the path if a rewrite function is provided
+ *  forwards websocket upgrades
+ *  sets the host header to match the target to appease certain backends
+ * @param {string} prefix logical prefix
+ * @param {string} target absolute target url
+ * @param {(path:string, req?:import('http').IncomingMessage)=>string} rewrite
+ * @returns {import('http-proxy-middleware').RequestHandler}
+ */
 function makeProxy(prefix, target, rewrite) {
   return createProxyMiddleware({
     target,
@@ -43,6 +67,10 @@ function makeProxy(prefix, target, rewrite) {
   });
 }
 
+/**
+ * this runs before specific prefix proxies
+ * records the raw request path
+ */
 app.use((req, res, next)=>{
     // get request path
     trackUsage(req.path);
@@ -50,6 +78,9 @@ app.use((req, res, next)=>{
 }
 )
 
+/**
+ * auth service; strips /auth
+ */
 app.use(
   "/auth",
   makeProxy(
@@ -59,6 +90,10 @@ app.use(
   )
 );
 
+
+/**
+ * transcription api service; forwards both http and ws traffic, strips /api
+ */
 app.use(
   "/api",
   makeProxy(
@@ -68,6 +103,9 @@ app.use(
   )
 );
 
+/**
+ * s3 storage service, strips /s3
+ */
 app.use(
   "/s3",
   makeProxy(
@@ -77,10 +115,16 @@ app.use(
   )
 );
 
+/**
+ * json endpoint to inspect usage counters
+ */
 app.get("/__usage", (req, res) => {
   res.json(usageStats);
 });
 
+/**
+ * frontend fallback; proxies any remaining paths to the ui host with no rewrite
+ */
 app.use(
   "/",
   makeProxy(

@@ -8,7 +8,11 @@ import dotenv from "dotenv";
 import path from "path";
 dotenv.config();
 
-// config
+
+/**
+ * aws s3 compatible client
+ * endpoint and credentials come from environment variables
+ */
 const s3 = new S3Client({
   region: process.env.AWS_REGION!,
   endpoint: process.env.AWS_ENDPOINT_URL!,
@@ -21,6 +25,12 @@ const s3 = new S3Client({
 
 const BUCKET = process.env.BUCKET_NAME!;
 
+
+/**
+ * returns json with a status code
+ * @param obj payload
+ * @param status http status code
+ */
 function json(obj: any, status = 200) {
   return new Response(JSON.stringify(obj), {
     status,
@@ -28,12 +38,31 @@ function json(obj: any, status = 200) {
   });
 }
 
-// server
+/**
+ * bun http server that exposes an object api
+ *
+ * POST   /queue
+ * upload a media file as queue/{jobid}.{ext}
+ * GET    /queue/:jobid
+ * fetch the first matching queued media by known extensions
+ *
+ * POST   /transcriptions
+ * create a transcription text as transcriptions/{jobid}.txt
+ * PUT    /transcriptions
+ * update an existing transcription in place
+ * GET    /transcriptions/:jobid
+ * fetch transcription text
+ * DELETE /transcriptions/:jobid
+ * delete by job id
+ * DELETE /transcriptions?key=
+ * delete by explicit key. accepts either full key or filename
+ */
 const app = Bun.serve({
   port: 8080,
   async fetch(req) {
     const url = new URL(req.url);
     const pathname = url.pathname;
+    
     // POST /queue  — upload audio file under {jobid}.{ext}
     if (req.method === "POST" && pathname === "/queue") {
       const form = await req.formData();
