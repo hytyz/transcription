@@ -1,0 +1,995 @@
+openapi: 3.0.0
+info:
+  title: ytyz transcriber api docs
+  version: 1.0.0
+  description: |
+    gateway api: reverse proxy for a single origin and cors surface
+    all routes are documented as they appear via the gateway
+    frontend is meant to be hosted at a separate public origin but can be accessed via gateway as well
+
+servers:
+  - url: http://localhost:8080
+    description: local deployment
+  - url: https://sytyz.tailec0aa4.ts.net/
+    description: production deployment
+
+tags:
+  - name: gateway
+    description: gateway-level utilities and metrics
+  - name: auth
+    description: authentication, users, and transcription metadata
+  - name: gpu
+    description: gpu transcription service (job upload & websocket status)
+  - name: storage
+    description: s3 wrapper for audio queue and text transcriptions
+  - name: frontend
+    description: html views served via the root service
+
+paths:
+  /__usage:
+    get:
+      tags: [gateway]
+      summary: get gateway route usage statistics
+      description: |
+        returns a map of prefixes and paths to hit counts recorded by the gateway.
+        keys include route prefixes and full request paths (e.g. `/auth`, `/api`, `/s3`, `/`).
+      operationId: getGatewayUsage
+      responses:
+        '200':
+          description: usage statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: integer
+                  description: number of times this prefix/path has been requested
+        '500':
+          description: internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/create:
+    post:
+      tags: [auth]
+      summary: create a user account
+      description: |
+        creates a new user and sets an http-only jwt cookie (`token`) on success.
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthCredentials'
+      responses:
+        '200':
+          description: user created successfully
+          headers:
+            Set-Cookie:
+              description: jwt session cookie (`token`) is set on success.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          description: missing email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: user already exists (unique constraint)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: database or hashing error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: login and receive jwt cookie
+      description: |
+        verifies credentials and issues an http-only `token` cookie.
+        requires `content-type: application/json`.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthCredentials'
+      responses:
+        '200':
+          description: login successful
+          headers:
+            Set-Cookie:
+              description: jwt session cookie (`token`) is set on success.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          description: missing email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: unsupported media type (non-json)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: hashing or db error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: logout and clear jwt cookie
+      description: |
+        clears the `token` cookie.
+      operationId: logout
+      responses:
+        '200':
+          description: logout successful
+          headers:
+            Set-Cookie:
+              description: clears the `token` cookie.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: get current user payload
+      description: |
+        returns the jwt payload of the authenticated user (`email`, `iat`, `exp`, etc.).
+        accepts the jwt from the `token` cookie or `authorization: bearer` header.
+      operationId: getMe
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: jwt payload for the current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payload:
+                    $ref: '#/components/schemas/JwtPayload'
+        '401':
+          description: no token or invalid/expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/increment:
+    post:
+      tags: [auth]
+      summary: increment api usage count for current user
+      description: |
+        increments the `api_usage` field for the authenticated user.
+      operationId: incrementUsage
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: increment successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  email:
+                    type: string
+                    format: email
+        '401':
+          description: no token or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: user not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: db error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/usage:
+    get:
+      tags: [auth]
+      summary: get usage for all users (admin only)
+      description: |
+        returns api usage for all users.  
+        requires a valid token whose `email` is exactly `admin@admin.com`.
+      operationId: getAllUsage
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: usage for all users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserUsage'
+        '401':
+          description: no token or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: forbidden (not admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: db error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/myusage:
+    get:
+      tags: [auth]
+      summary: get usage for current user
+      description: |
+        returns the `api_usage` count for the authenticated user.
+      operationId: getMyUsage
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: current user usage
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email:
+                    type: string
+                    format: email
+                  usage:
+                    type: integer
+        '401':
+          description: no token or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: user not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: db error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/transcriptions/add:
+    post:
+      tags: [auth]
+      summary: add transcription metadata and increment user usage
+      description: |
+        stores a transcription record for a given user and job id,
+        and increments the user's `api_usage` count.
+        typically called by the gpu service after job submission.
+      operationId: addTranscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, jobid, filename]
+              properties:
+                email:
+                  type: string
+                  format: email
+                jobid:
+                  type: string
+                filename:
+                  type: string
+      responses:
+        '201':
+          description: transcription record created and usage incremented
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  jobid:
+                    type: string
+                  email:
+                    type: string
+                    format: email
+                  incremented:
+                    type: boolean
+                    example: true
+        '400':
+          description: missing email, jobid, or filename
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: user not found while incrementing usage
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: jobid already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: db error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/transcriptions/delete:
+    delete:
+      tags: [auth]
+      summary: delete a transcription record for the current user
+      description: |
+        deletes a transcription record by `jobid` **owned by the authenticated user**.
+      operationId: deleteTranscriptionMeta
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: transcription record deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  jobid:
+                    type: string
+        '400':
+          description: jobid missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: no token or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: transcription not found or not owned by user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: db error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/transcriptions/:
+    get:
+      tags: [auth]
+      summary: list transcriptions for current user
+      description: |
+        returns all transcription metadata records (jobid, timestamp, filename)
+        associated with the authenticated user, ordered by `created_at desc`.
+      operationId: listTranscriptionsMeta
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: list of user transcriptions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email:
+                    type: string
+                    format: email
+                  transcriptions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TranscriptionRecord'
+        '401':
+          description: no token or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: db error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/health:
+    get:
+      tags: [auth]
+      summary: auth service health check
+      operationId: authHealth
+      responses:
+        '200':
+          description: auth service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+
+  /api/upload:
+    post:
+      tags: [gpu]
+      summary: upload audio for transcription
+      description: |
+        accepts an audio file and a job id, queues it for transcription, and
+        optionally associates it with a user via the `token` cookie.
+        returns `status: "accepted"` or `status: "queued"`.
+      operationId: uploadAudio
+      security:
+        - cookieAuth: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, jobid]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: audio file (e.g. wav, mp3, m4a, etc.)
+                jobid:
+                  type: string
+                  description: unique job id for this transcription
+      responses:
+        '200':
+          description: job queued or accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobid:
+                    type: string
+                  status:
+                    type: string
+                    description: job status immediately after upload
+                    enum: [accepted, queued]
+        '500':
+          description: internal error while starting transcription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/ws/status:
+    get:
+      tags: [gpu]
+      summary: websocket endpoint for transcription status
+      description: |
+        websocket endpoint used by clients to receive real-time status updates
+        for a given `jobid`.
+
+        - url: `wss://polina-gateway.fly.dev/api/ws/status`
+        - first message **must** be json: `{ "jobid": "<id>" }`
+        - server sends json messages like:
+          - `{ "status": "connected" }`
+          - `{ "status": "queued" }`
+          - `{ "status": "not found" }`
+          - `{ "status": "completed" }`
+          - `{ "status": "error", "error": "..." }`
+      operationId: websocketStatus
+      responses:
+        '101':
+          description: websocket upgrade (used by clients that support websocket)
+    x-websocket:
+      url: wss://polina-gateway.fly.dev/api/ws/status
+      protocol: json
+      description: |
+        connect here with websocket and send `{"jobid": "<id>"}` as the first message
+        to subscribe to status updates for that job.
+
+  /s3/queue:
+    post:
+      tags: [storage]
+      summary: upload raw audio to queue bucket
+      description: |
+        uploads an audio file to the queue folder (`queue/{jobid}.{ext}`) in the s3 bucket.
+      operationId: queueAudio
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, jobid]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: audio file to queue
+                jobid:
+                  type: string
+                  description: job id used for the key
+      responses:
+        '200':
+          description: audio uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  jobid:
+                    type: string
+                  key:
+                    type: string
+                    description: s3 key under `queue/`
+        '400':
+          description: missing file or jobid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: s3 error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /s3/transcriptions:
+    post:
+      tags: [storage]
+      summary: upload transcription text
+      description: |
+        uploads a transcription text file to `transcriptions/{jobid}.txt` in the bucket.
+      operationId: createTranscriptionFile
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, jobid]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: text file containing the transcription
+                jobid:
+                  type: string
+                  description: job id used for the key
+      responses:
+        '200':
+          description: transcription file uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  jobid:
+                    type: string
+                  key:
+                    type: string
+                    description: s3 key under `transcriptions/`
+        '400':
+          description: missing file or jobid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: s3 error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags: [storage]
+      summary: update transcription text in place
+      description: |
+        overwrites an existing transcription text file at `transcriptions/{jobid}.txt`.
+      operationId: updateTranscriptionFile
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, jobid]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: updated transcription text
+                jobid:
+                  type: string
+                  description: job id used for the key
+      responses:
+        '200':
+          description: transcription file updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  jobid:
+                    type: string
+                  key:
+                    type: string
+                  message:
+                    type: string
+                    example: updated in place
+        '400':
+          description: missing file or jobid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: s3 error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /s3/queue/{jobid}:
+    get:
+      tags: [storage]
+      summary: download queued audio by jobid
+      description: |
+        attempts to download a queued audio file for the given job id, trying multiple
+        extensions (`wav`, `mp3`, `m4a`, `flac`, `ogg`, `bin`) in that order.
+      operationId: getQueuedAudio
+      parameters:
+        - name: jobid
+          in: path
+          required: true
+          schema:
+            type: string
+          description: job id used when uploading
+      responses:
+        '200':
+          description: audio file found
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /s3/transcriptions/{jobid}:
+    get:
+      tags: [storage]
+      summary: download transcription text by jobid
+      description: |
+        returns the transcription text for the given job id from `transcriptions/{jobid}.txt`.
+      operationId: getTranscriptionFile
+      parameters:
+        - name: jobid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: transcription text
+          content:
+            text/plain:
+              schema:
+                type: string
+        '404':
+          description: file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags: [storage]
+      summary: delete transcription file
+      description: |
+        deletes a transcription file in the bucket.
+
+        - by default, deletes `transcriptions/{jobid}.txt`.
+        - if `key` query parameter is provided, deletes that key instead
+          (with `transcriptions/` automatically prefixed if missing).
+      operationId: deleteTranscriptionFile
+      parameters:
+        - name: jobid
+          in: path
+          required: true
+          schema:
+            type: string
+          description: job id for default deletion behavior.
+        - name: key
+          in: query
+          required: false
+          schema:
+            type: string
+          description: >
+            optional s3 key (with or without `transcriptions/` prefix). if present, overrides
+            the default `transcriptions/{jobid}.txt` key.
+      responses:
+        '200':
+          description: file deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  message:
+                    type: string
+                    example: file deleted successfully
+        '404':
+          description: file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: bad key/path (should be rare if jobid given)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+
+  /:
+    get:
+      tags: [frontend]
+      summary: home page
+      description: serves the main html page (transcription ui / landing page).
+      operationId: getHome
+      responses:
+        '200':
+          description: html page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /login:
+    get:
+      tags: [frontend]
+      summary: login page
+      operationId: getLoginPage
+      responses:
+        '200':
+          description: login html page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /register:
+    get:
+      tags: [frontend]
+      summary: registration page
+      operationId: getRegisterPage
+      responses:
+        '200':
+          description: registration html page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /dashboard:
+    get:
+      tags: [frontend]
+      summary: dashboard page
+      description: |
+        displays user dashboard (requires auth on the frontend side).
+      operationId: getDashboardPage
+      responses:
+        '200':
+          description: dashboard html page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /usage:
+    get:
+      tags: [frontend]
+      summary: usage page
+      description: |
+        frontend view for visualizing usage stats (requires auth on the frontend side).
+      operationId: getUsagePage
+      responses:
+        '200':
+          description: usage html page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /transcription:
+    get:
+      tags: [frontend]
+      summary: transcription viewer page
+      description: |
+        frontend page to view or edit a transcription.
+      operationId: getTranscriptionPage
+      responses:
+        '200':
+          description: transcription html page
+          content:
+            text/html:
+              schema:
+                type: string
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: jwt
+      description: jwt bearer token in the `authorization` header.
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+      description: jwt token stored as an http-only cookie named `token`.
+
+  schemas:
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: error message
+        details:
+          type: string
+          nullable: true
+          example: optional extra details
+
+    AuthCredentials:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    JwtPayload:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        iat:
+          type: integer
+          description: issued-at timestamp (seconds since epoch)
+        exp:
+          type: integer
+          description: expiration timestamp (seconds since epoch)
+      additionalProperties: true
+
+    UserUsage:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        api_usage:
+          type: integer
+
+    TranscriptionRecord:
+      type: object
+      properties:
+        jobid:
+          type: string
+        created_at:
+          type: integer
+          description: unix timestamp (seconds)
+        filename:
+          type: string
