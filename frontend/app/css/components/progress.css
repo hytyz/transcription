@@ -22,3 +22,31 @@
     border-radius: 0;
     transform-origin: 0 0;
 }
+
+.progress-fallback {
+    display: none;
+    background-color: var(--white);
+    border: var(--border-width-thick) solid var(--black);
+    height: var(--space-md);
+    overflow: hidden;
+    flex: 1 1 8rem;
+    min-width: 0;
+    width: 100%;
+}
+
+.progress-fallback>span {
+    display: block;
+    height: 100%;
+    width: 40%;
+    background-color: var(--black);
+    animation: progress-animation 1.2s linear infinite;
+    transform: translateX(-100%);
+}
+
+progress:indeterminate {
+    display: none;
+}
+
+progress:indeterminate+.progress-fallback {
+    display: block;
+}

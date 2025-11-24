@@ -22,10 +22,10 @@ def load_audio(data:bytes) -> ndarray:
     if not _FFMPEG_AVAILABLE: raise TranscriptionError("ffmpeg not found. https://ffmpeg.org/download.html")
 
     # .m4a is in the mp4 family. to parse mp4 containers, parser would need random access to 
-    # get the moov atom (the index and timing info), which is placed at the end of mp4 containers
+    # get the moov atom (the index and timing info), which is placed at the end of mp4 containers;
     # when the input is a nonseekable pipe (stdin), ffmpeg can only consume bytes in order, 
     # so in m4a files it doesn't see the moov atom and treats the input as a partial (=unusable) file. 
-    # a (temporary) file is seekable and is the only viable, afaik, solution    
+    # a (temporary) file is seekable and is the only viable, afaik, solution to .m4a files not working   
     with tempfile.NamedTemporaryFile(suffix=".audio") as temporary_file:
         # this is saved in /tmp
         temporary_file.write(data)

@@ -11,8 +11,8 @@ const viewCache = {}
 // global auth state
 let authState = false;
 
-var BASE_URL = "https://polina-gateway.fly.dev"; // gateway base URL
-var AUTH_URL = `${BASE_URL}/auth`;
+const BASE_URL = "https://polina-gateway.fly.dev";
+const AUTH_URL = `${BASE_URL}/auth`;
 
 // mom says we have reactjs at home
 
