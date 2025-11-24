@@ -21,6 +21,11 @@ const JWT_EXP_SECONDS = parseInt(process.env.JWT_EXP_SECONDS, 10);
 const PRIVATE_KEY = fs.readFileSync(PRIVATE_KEY_PATH, 'utf8');
 const PUBLIC_KEY = fs.readFileSync(PUBLIC_KEY_PATH, 'utf8');
 
+/**
+ * seeds some test accounts if they're not already present
+ * then it checks for each sample email and derives a password hash with a salt
+ * then inserts the user row. errors are swallowed per user
+ */
 async function seedSampleUsers() {
     const samples = [
         { email: "admin@admin.com", password: "111" },
@@ -81,7 +86,12 @@ db.serialize(() => {
 
 });
 
-
+/**
+ * base64-url encodes a utf8 string without padding
+ * this is used for jwt header and payload
+ * @param {string} input 
+ * @returns {string}
+ */
 function base64url(input) {
     return Buffer.from(input).toString('base64')
         .replace(/=/g, '')
@@ -89,14 +99,28 @@ function base64url(input) {
         .replace(/\//g, '_');
 }
 
+/** same as above but encodes a node.js buffer */
 function base64urlFromBuffer(buf) { return buf.toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_'); }
 
+/**
+ * decodes a base64 url back to a buffer, adds padding if necessary
+ * @param {string} str 
+ * @returns {Buffer}
+ */
 function base64urlDecodeToBuffer(str) {
     str = str.replace(/-/g, '+').replace(/_/g, '/');
     while (str.length % 4) str += '=';
     return Buffer.from(str, 'base64');
 }
 
+/**
+ * creates a jwt signed with rs256
+ * builds a protected header, merges claims like iat and exp
+ * and signs header.payload with the rsa private key
+ * @param {object} payloadObj jwt claims 
+ * @param {{kid?: string, expSeconds?: number}} opts 
+ * @returns {string} a jwt
+ */
 function signJwt(payloadObj, opts = {}) {
     const header = { alg: 'RS256', typ: 'JWT' };
     if (opts.kid) header.kid = opts.kid;
@@ -117,6 +141,12 @@ function signJwt(payloadObj, opts = {}) {
     return `${signingInput}.${sigB64}`;
 }
 
+/**
+ * verifies an rs256 jwt and returns either the parsed payload or an error
+ * verifies structure, signature, and exp claim
+ * @param {string} token 
+ * @returns {{valid: try, payload: any} | {valid: false, error: string}}
+ */
 function verifyJwt(token) {
     try {
         const parts = token.split('.');
@@ -141,8 +171,18 @@ function verifyJwt(token) {
     } catch (err) { return { valid: false, error: err.message || String(err) }; }
 }
 
+/** generates a random hex salt */
 function genSalt(len = 16) { return crypto.randomBytes(len).toString('hex'); }
 
+/**
+ * derives a password hash using pbkdf2 with the passed in salt
+ * @param {string} password 
+ * @param {string} salt 
+ * @param {number} iterations 
+ * @param {number} keylen 
+ * @param {string} digest 
+ * @returns {Promise<string>} hex encoded derived key
+ */
 function hashPassword(password, salt, iterations = 100_000, keylen = 64, digest = 'sha512') {
     return new Promise((resolve, reject) => {
         crypto.pbkdf2(password, salt, iterations, keylen, digest, (err, derivedKey) => {
@@ -213,6 +253,7 @@ app.post('/login', async (req, res) => {
         try { computed = await hashPassword(password, row.salt); } catch (e) {
             return res.status(500).json({ error: 'hashing failure' });
         }
+        // constant-time comparison to avoid timing side channels on invalid credentials
         const match = crypto.timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(row.password_hash, 'hex'));
         if (!match) return res.status(401).json({ error: 'invalid credentials' });
 

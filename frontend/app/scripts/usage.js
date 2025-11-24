@@ -17,9 +17,12 @@ function setupUsagePage() {
     const msg = document.getElementById('msg');
 
     getUsageForCurrentUser().then((res) => {
-        console.log(res)
-        document.getElementById('total-api-calls').textContent = res.usage
-        document.getElementById('user-email').textContent = res.email
+       console.log(res)
+       document.getElementById('total-api-calls').textContent = res.usage 
+       if (res.usage > 20){ 
+           document.getElementById('total-api-calls').textContent = `${res.usage} (warning usage is above 20)`
+       }
+       document.getElementById('user-email').textContent = res.email
     });
 
     fetch(`${AUTH_URL}/usage`, { credentials: 'include', })

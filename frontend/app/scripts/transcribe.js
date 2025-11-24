@@ -43,6 +43,10 @@ function setupTranscribe() {
             const sizeMB = file.size / (1024 * 1024);
             fileSizeLabel.textContent = `${sizeMB.toFixed(1)} MB`;
 
+            const progressBar = document.getElementById('progress-bar');
+            progressBar.removeAttribute('value');
+            progressBar.removeAttribute('max');
+
             const res = await fetch(`${gpuURL}/upload`, { method: "POST", body: formData, credentials: "include" });
 
             if (!res.ok) {

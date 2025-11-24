@@ -1,6 +1,15 @@
 import { BASE_URL, AUTH_URL } from "../router.js";
 import { translate } from "./i18n.js";
 
+/**
+ * builds a file card element from a template and inits its expand behavior
+ * fetches and caches the transcription text in sessionStorage to avoid repeated network calls
+ * sets dataset attributes for later actions like download and edit
+ * @param {string} jobid
+ * @param {number} createdAt unix seconds
+ * @param {string} filename
+ * @returns {Promise<HTMLElement>}
+ */
 async function createCardFromTemplate(jobid, createdAt, filename) {
     const templateHtml = await fetch("/templates/file.html").then(r => r.text());
 
