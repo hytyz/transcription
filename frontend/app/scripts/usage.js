@@ -1,7 +1,17 @@
 import { navigateTo, BASE_URL, AUTH_URL } from "../router.js";
 
+/**
+ * creates the usage page
+ * loads the current user's usage to display a personalised summary; if the user is not authenticated it navigates to login
+ * if the viewer is an admin it loads the full user list with the backend api usage stats
+ */
 function setupUsagePage() {
 
+    /**
+     * fetches usage for the current authenticated user
+     * navigates to the login page if not authorised
+     * @returns {Promise<{email:string, usage:number}|undefined>}
+     */
     async function getUsageForCurrentUser() {
         try {
             const res = await fetch(`${AUTH_URL}/myusage/`, { credentials: "include" });

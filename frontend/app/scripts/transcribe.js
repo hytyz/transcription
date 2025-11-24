@@ -6,6 +6,10 @@ const api_url = `${BASE_URL}/api`;
 let gpuURL = api_url;
 const WebSocketURL = "wss://pataka.tail2feabe.ts.net/ws/status";
 
+/**
+ * wires the upload flow; handles file selection; starts a transcription job; tracks progress via websocket
+ * updates the page to show progress and navigates to the transcription view on completion
+ */
 function setupTranscribe() {
     const audioFileInput = document.getElementById("audio-file");
     const dropButton = document.querySelector(".drop-button");
@@ -24,6 +28,13 @@ function setupTranscribe() {
         if (file) { startTranscription(file); }
     });
 
+    /**
+     * starts a new transcription by uploading the file as multipart form data
+     * generates a job id on the client; updates the ui to show progress; starts ws tracking
+     * reloads the page on errors to reset the state
+     * @param {File} file
+     * @returns {Promise<void>}
+     */
     async function startTranscription(file) {
         const buffer = await file.arrayBuffer();
         const clonedFile = new File([buffer], file.name, { type: file.type });
@@ -73,6 +84,12 @@ function setupTranscribe() {
         }
     }
 
+    /**
+     * opens a websocket to receive status updates for a job id
+     * navigates to the transcription view when the job completes
+     * displays an alert and closes the socket on error
+     * @param {string} jobid
+     */
     function startWebSocket(jobid) {
         const ws = new WebSocket(`${WebSocketURL}`);
 
@@ -103,6 +120,11 @@ function setupTranscribe() {
         ws.onclose = () => console.log("ws closed");
     }
 
+    /**
+     * shows a readable status text in the progress card
+     * @param {string} status
+     * @returns {Promise<void>}
+     */
     async function setTranscriptionStatus(status) {
         document.getElementById("progress-status").textContent = status;
     }
