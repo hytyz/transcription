@@ -25,15 +25,30 @@ const routes = [
   { path: "/transcription", view: "views/transcription.html", requiresAuth: false, onload: setupTranscription }
 ];
 
+/**
+ * returns the route definition that exactly matches a path; falls back to the first route
+ * @param {string} path
+ * @returns {{path:string,view:string,showNav?:boolean,requiresAuth?:boolean,onload?:Function}}
+ */
 function matchRoute(path) {
   return routes.find(r => r.path === path) || routes[0];
 }
 
+/**
+ * navigates to a url using pushState and then runs the router to render the new view
+ * @param {string} url
+ * @returns {Promise<void>}
+ */
 export async function navigateTo(url) {
   history.pushState(null, null, url);
   await router();
 }
 
+/**
+ * performs simple auth gating for routes marked requiresAuth; getches and caches view html; renders into #app
+ * toggles navbar visibility per route; applies i18n and document title
+ * @returns {Promise<void>}
+ */
 async function router() {
   const match = matchRoute(location.pathname);
 
@@ -96,6 +111,10 @@ await loadMessages("en");
 authState = await initAuth(AUTH_URL);
 router();
 
+/**
+ * updates global auth state for the router and ui helpers
+ * @param {boolean} state
+ */
 function setAuthState(state) { authState = state }
 
 export { setAuthState, BASE_URL, AUTH_URL }

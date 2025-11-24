@@ -1,7 +1,12 @@
-import { createCardFromTemplate, activateDownloadButtons, formatToYYYYMMDD } from "./dashboard.js";
+import { createCardFromTemplate, activateDownloadButtons } from "./dashboard.js";
 
-// date.now() gives milliseconds since epoch
+/**
+ * renders a single transcription card for the job created in the current session
+ * reads job id and file name from sessionStorage; uses current time for the card date
+ * @returns {Promise<void>}
+ */
 async function setupTranscription() {
+    // date.now() gives milliseconds since epoch
     const root = document.getElementById("file-card-root");
     if (!root) return;
     let currentJobId = sessionStorage.getItem("currentJobId");

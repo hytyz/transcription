@@ -71,6 +71,11 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
     return card;
 }
 
+/**
+ * formats a date to yyyymmdd
+ * @param {Date} date
+ * @returns {string}
+ */
 function formatToYYYYMMDD(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0'); // months are zero indexed
@@ -78,6 +83,12 @@ function formatToYYYYMMDD(date) {
     return `${year}${month}${day}`;
 }
 
+/**
+ * starts a client-side download for provided text as a .txt file
+ * uses a blob url
+ * @param {string} text
+ * @param {string} filename without extension
+ */
 function downloadText(text, filename) {
     // point of the blob is to prevent a repeated fetch to our s3 service when downloading
     const blob = new Blob([text], { type: "text/plain" });
@@ -93,6 +104,13 @@ function downloadText(text, filename) {
     URL.revokeObjectURL(url);
 }
 
+/**
+ * deletes a transcription from the database first, then from object storage
+ * displays localized alerts on failures; removes the card from the dom on success
+ * @param {string} jobid
+ * @param {HTMLElement} [card]
+ * @returns {Promise<void>}
+ */
 async function deleteTranscription(jobid, card) {
     console.log("deleting job:", jobid);
 
@@ -140,6 +158,15 @@ async function deleteTranscription(jobid, card) {
     console.log(`deleted transcription ${jobid} from db and s3`);
 }
 
+/**
+ * opens a modal that lets the user relabel speakers in a transcript
+ * extracts unique speaker labels from lines that match [hh:mm:ss] NAME:
+ * renders an input row for each label; validates replacements
+ * applies global whole-word replacements; uploads the updated text; updates cache and the ui card
+ * @param {string} jobid
+ * @param {string} currentText
+ * @returns {Promise<void>}
+ */
 async function openModifyModal(jobid, currentText) {
     // browsers love caching stuff
     document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
@@ -267,6 +294,10 @@ async function openModifyModal(jobid, currentText) {
     }, { once: true });
 }
 
+/**
+ * enables delegated click handling for download, delete, and edit actions on file cards
+ * reads dataset attributes from the nearest .file-card to execute the action
+ */
 function activateDownloadButtons() {
     document.addEventListener("click", (e) => {
         const downloadBtn = e.target.closest(".download-button");
@@ -304,6 +335,10 @@ function activateDownloadButtons() {
     });
 }
 
+/**
+ * overrides ctrl+a when focus is inside a file card
+ * selects only the visible text region of that card
+ */
 function interceptSelectAll() {
 
     let lastClickInsideCard = null;
@@ -339,6 +374,11 @@ function interceptSelectAll() {
 
 }
 
+/**
+ * renders the dashboard
+ * loads transcription metadata; renders cards in pages;
+ * sets up infinite scroll; enables download, delete, and edit behaviours
+ */
 function dashboardScript() {
 
     let allTranscriptions = [];
