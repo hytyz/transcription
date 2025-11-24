@@ -8,6 +8,13 @@ const app = express();
  */
 app.use(express.static("./"));
 
+/**
+ * serves the openapi docs
+ */
+app.get("/docs", (req, res)=> {
+  res.sendFile(path.join(process.cwd(), "views", "openapi.html"))
+})
+
 app.get(/.*/, (req, res) => {
   res.sendFile(path.join(process.cwd(), "index.html"));
 });
