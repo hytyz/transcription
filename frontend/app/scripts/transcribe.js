@@ -1,7 +1,7 @@
 import { navigateTo } from "../router.js";
 import { translate } from "./i18n.js";
 
-const BASE_URL = "https://polina-gateway.fly.dev"
+const BASE_URL = "https://sytyz.tailec0aa4.ts.net"
 const api_url = `${BASE_URL}/api`;
 let gpuURL = api_url;
 const WebSocketURL = "wss://pataka.tail2feabe.ts.net/ws/status";
