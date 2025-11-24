@@ -85,7 +85,7 @@ app.use(
   "/auth",
   makeProxy(
     "/auth",
-    "https://polina-auth.fly.dev",
+    "http://auth:3000",
     (path) => path.replace(/^\/auth\/?/, "/")
   )
 );
@@ -110,7 +110,7 @@ app.use(
   "/s3",
   makeProxy(
     "/s3",
-    "https://s3-aged-water-5651.fly.dev",
+    "http://s3:6767",
     (path) => path.replace(/^\/s3\/?/, "/")
   )
 );
@@ -129,12 +129,12 @@ app.use(
   "/",
   makeProxy(
     "/",
-    "https://taupekhana.tail2feabe.ts.net",
+    "https://ytyz-transcriber.com",
     (path) => path // no rewrite
   )
 );
 
 
-app.listen(8080, () => {
-  console.log("Proxy running at http://localhost:8080");
+app.listen(8082, () => {
+  console.log("Proxy running at http://localhost:8082");
 });

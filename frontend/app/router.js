@@ -11,7 +11,7 @@ const viewCache = {}
 // global auth state
 let authState = false;
 
-const BASE_URL = "https://sytyz.tailec0aa4.ts.net/";
+const BASE_URL = "https://sytyz.tailec0aa4.ts.net";
 const AUTH_URL = `${BASE_URL}/auth`;
 
 // mom says we have reactjs at home

@@ -1,5 +1,5 @@
 import { BASE_URL, AUTH_URL } from "../router.js";
-import { translate } from "./i18n.js";
+import { translate, applyTranslations } from "./i18n.js";
 
 /**
  * builds a file card element from a template and inits its expand behavior
@@ -190,6 +190,8 @@ async function openModifyModal(jobid, currentText) {
     const modal = wrapper.firstElementChild;
     document.body.appendChild(modal);
 
+    applyTranslations(modal);
+
     const tableBody = modal.querySelector("#speakers-modal tbody");
     const applyBtn = modal.querySelector("#relabel-speakers-btn");
 
@@ -286,19 +288,28 @@ async function openModifyModal(jobid, currentText) {
         document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
     });
 
-    modal.addEventListener("click", (e) => {
-        if (e.target.classList.contains("modal-overlay") || e.target.classList.contains("cancel-btn")) {
+    const cancelBtn = modal.querySelector(".cancel-btn");
+    cancelBtn.addEventListener("click", e => {
+        e.preventDefault();
+        document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
+    });
+
+    modal.addEventListener("click", e => {
+        if (e.target.classList.contains("modal-overlay")) {
             e.preventDefault();
             document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
         }
-    }, { once: true });
+    });
 }
 
 /**
  * enables delegated click handling for download, delete, and edit actions on file cards
  * reads dataset attributes from the nearest .file-card to execute the action
  */
+let eventListenersAdded = false;
 function activateDownloadButtons() {
+    if (eventListenersAdded) return;
+    eventListenersAdded = true;
     document.addEventListener("click", (e) => {
         const downloadBtn = e.target.closest(".download-button");
         const deleteBtn = e.target.closest(".delete-button");

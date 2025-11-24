@@ -58,7 +58,7 @@ function json(obj: any, status = 200) {
  * delete by explicit key. accepts either full key or filename
  */
 const app = Bun.serve({
-  port: 8080,
+  port: 6767,
   async fetch(req) {
     const url = new URL(req.url);
     const pathname = url.pathname;
