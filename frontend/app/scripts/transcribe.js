@@ -1,8 +1,7 @@
-import { navigateTo } from "../router.js";
+import { navigateTo, BASE_URL, AUTH_URL } from "../router.js";
 import { translate } from "./i18n.js";
 
-const BASE_URL = "https://sytyz.tailec0aa4.ts.net"
-const api_url = `${BASE_URL}/api`;
+const api_url = `https://sytyz.tailc0aa4.ts.net/api`;
 let gpuURL = api_url;
 const WebSocketURL = "wss://pataka.tail2feabe.ts.net/ws/status";
 
@@ -58,7 +57,7 @@ function setupTranscribe() {
             progressBar.removeAttribute('value');
             progressBar.removeAttribute('max');
 
-            const res = await fetch(`${gpuURL}/upload`, { method: "POST", body: formData, credentials: "include" });
+            const res = await fetch(`https://sytyz.tailec0aa4.ts.net/api/upload`, { method: "POST", body: formData, credentials: "include" });
 
             if (!res.ok) {
                 alert(translate("transcribe.error.start") + " " + res);
