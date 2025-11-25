@@ -74,7 +74,7 @@ function makeProxy(prefix, target, rewrite) {
 app.use((req, res, next)=>{
     // get request path
     trackUsage(req.path);
-    next();
+    next(); 
 }
 )
 
@@ -136,5 +136,5 @@ app.use(
 
 
 app.listen(8082, () => {
-  console.log("Proxy running at http://localhost:8082");
+  console.log("proxy running at http://localhost:8082");
 });

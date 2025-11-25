@@ -37,7 +37,7 @@
 .progress-fallback>span {
     display: block;
     height: 100%;
-    width: 40%;
+    width: 100%;
     background-color: var(--black);
     animation: progress-animation 1.2s linear infinite;
     transform: translateX(-100%);
