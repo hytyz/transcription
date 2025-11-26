@@ -266,27 +266,27 @@ app.post('/create', async (req, res) => {
     let password_hash;
     try { password_hash = await hashPassword(password, salt); }
     catch (err) { return res.status(500).json({ error: 'hashing failure' }); }
-    const stmt = db.prepare(
-        'INSERT INTO users(email, password_hash, salt, api_usage) VALUES(?,?,?,0)'
-    );
-    stmt.run(email, password_hash, salt, function (err) {
-        if (err) {
-            if (err.message && err.message.includes('UNIQUE')) { return res.status(409).json({ error: 'user already exists' }); }
-            return res.status(500).json({ error: 'db error', details: err.message });
+    
+    db.run(
+        'INSERT INTO users(email, password_hash, salt, api_usage) VALUES(?,?,?,0)',
+        [email, password_hash, salt],
+        function (err) {
+            if (err) {
+                if (err.message && err.message.includes('UNIQUE')) { return res.status(409).json({ error: 'user already exists' }); }
+                return res.status(500).json({ error: 'db error', details: err.message });
+            }
+            const token = signJwt({ email }, { expSeconds: JWT_EXP_SECONDS });
+
+            res.cookie('token', token, {
+                httpOnly: true,
+                secure: process.env.COOKIE_SECURE === 'true',
+                sameSite: 'none',
+                maxAge: JWT_EXP_SECONDS * 1000,
+                path: '/'
+            });
+            return res.json({ ok: true });
         }
-        const token = signJwt({ email }, { expSeconds: JWT_EXP_SECONDS });
-
-        res.cookie('token', token, {
-            httpOnly: true,
-            secure: process.env.COOKIE_SECURE === 'true',
-            sameSite: 'none',
-            maxAge: JWT_EXP_SECONDS * 1000,
-            path: '/'
-        });
-        return res.json({ ok: true });
-
-    });
-    stmt.finalize();
+    );
 });
 
 
@@ -352,13 +352,15 @@ app.post('/increment', (req, res) => {
     const email = validity.payload.email;
     if (!email) return res.status(400).json({ error: 'email required' });
 
-    const stmt = db.prepare('UPDATE users SET api_usage = api_usage + 1 WHERE email = ?');
-    stmt.run(email, function (err) {
-        if (err) return res.status(500).json({ error: 'db error' });
-        if (this.changes === 0) return res.status(404).json({ error: 'user not found' });
-        return res.json({ ok: true, email });
-    });
-    stmt.finalize();
+    db.run(
+        'UPDATE users SET api_usage = api_usage + 1 WHERE email = ?',
+        [email],
+        function (err) {
+            if (err) return res.status(500).json({ error: 'db error' });
+            if (this.changes === 0) return res.status(404).json({ error: 'user not found' });
+            return res.json({ ok: true, email });
+        }
+    );
 });
 
 app.get('/usage', (req, res) => {
@@ -412,11 +414,10 @@ app.post('/transcriptions/add', (req, res) => {
 
     const createdAt = Math.floor(Date.now() / 1000);
 
-    db.serialize(() => {
-        const stmt1 = db.prepare(
-            'INSERT INTO transcriptions(jobid, email, created_at, filename) VALUES(?,?,?,?)'
-        );
-        stmt1.run(jobid, email, createdAt, filename, function (err) {
+    db.run(
+        'INSERT INTO transcriptions(jobid, email, created_at, filename) VALUES(?,?,?,?)',
+        [jobid, email, createdAt, filename],
+        function (err) {
             if (err) {
                 if (err.message.includes('UNIQUE')) {
                     return res.status(409).json({ error: 'jobid already exists' });
@@ -424,29 +425,28 @@ app.post('/transcriptions/add', (req, res) => {
                 return res.status(500).json({ error: 'db error', details: err.message });
             }
 
-            const stmt2 = db.prepare(
-                'UPDATE users SET api_usage = api_usage + 1 WHERE email = ?'
+            db.run(
+                'UPDATE users SET api_usage = api_usage + 1 WHERE email = ?',
+                [email],
+                function (err) {
+                    if (err) {
+                        return res.status(500).json({ error: 'db error (usage increment)' });
+                    }
+
+                    if (this.changes === 0) {
+                        return res.status(404).json({ error: 'user not found' });
+                    }
+
+                    return res.status(201).json({
+                        ok: true,
+                        jobid,
+                        email,
+                        incremented: true
+                    });
+                }
             );
-            stmt2.run(email, function (err) {
-                if (err) {
-                    return res.status(500).json({ error: 'db error (usage increment)' });
-                }
-
-                if (this.changes === 0) {
-                    return res.status(404).json({ error: 'user not found' });
-                }
-
-                return res.status(201).json({
-                    ok: true,
-                    jobid,
-                    email,
-                    incremented: true
-                });
-            });
-            stmt2.finalize();
-        });
-        stmt1.finalize();
-    });
+        }
+    );
 });
 
 app.delete('/transcriptions/delete', (req, res) => {
@@ -459,13 +459,15 @@ app.delete('/transcriptions/delete', (req, res) => {
     const { jobid } = req.body || {};
     if (!jobid) return res.status(400).json({ error: 'jobid required' });
 
-    const stmt = db.prepare('DELETE FROM transcriptions WHERE jobid = ? AND email = ?');
-    stmt.run(jobid, email, function (err) {
-        if (err) return res.status(500).json({ error: 'db error' });
-        if (this.changes === 0) return res.status(404).json({ error: 'transcription not found' });
-        return res.json({ ok: true, jobid });
-    });
-    stmt.finalize();
+    db.run(
+        'DELETE FROM transcriptions WHERE jobid = ? AND email = ?',
+        [jobid, email],
+        function (err) {
+            if (err) return res.status(500).json({ error: 'db error' });
+            if (this.changes === 0) return res.status(404).json({ error: 'transcription not found' });
+            return res.json({ ok: true, jobid });
+        }
+    );
 });
 
 app.put('/transcriptions/rename', (req, res) => {
@@ -478,13 +480,15 @@ app.put('/transcriptions/rename', (req, res) => {
     const { jobid, filename } = req.body || {};
     if (!jobid || !filename) return res.status(400).json({ error: 'jobid and filename required' });
 
-    const stmt = db.prepare('UPDATE transcriptions SET filename = ? WHERE jobid = ? AND email = ?');
-    stmt.run(filename, jobid, email, function (err) {
-        if (err) return res.status(500).json({ error: 'db error' });
-        if (this.changes === 0) return res.status(404).json({ error: 'transcription not found' });
-        return res.json({ ok: true, jobid, filename });
-    });
-    stmt.finalize();
+    db.run(
+        'UPDATE transcriptions SET filename = ? WHERE jobid = ? AND email = ?',
+        [filename, jobid, email],
+        function (err) {
+            if (err) return res.status(500).json({ error: 'db error' });
+            if (this.changes === 0) return res.status(404).json({ error: 'transcription not found' });
+            return res.json({ ok: true, jobid, filename });
+        }
+    );
 });
 
 
