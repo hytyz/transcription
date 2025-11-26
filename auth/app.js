@@ -338,6 +338,18 @@ app.get('/myusage', (req, res) => {
 });
 
 app.post('/transcriptions/add', (req, res) => {
+    const apiKey = req.header('X-API-Key');
+    const expectedApiKey = process.env.INTERNAL_TOKEN;
+    
+    if (!expectedApiKey) {
+        console.error('INTERNAL_TOKEN not configured');
+        return res.status(500).json({ error: 'server misconfiguration' });
+    }
+    
+    if (!apiKey || apiKey !== expectedApiKey) {
+        return res.status(401).json({ error: 'unauthorized: invalid or missing API key' });
+    }
+
     const { email, jobid, filename } = req.body || {};
     if (!email || !jobid || !filename) {
         return res.status(400).json({ error: "email, jobid, and filename required" });
@@ -346,7 +358,6 @@ app.post('/transcriptions/add', (req, res) => {
     const createdAt = Math.floor(Date.now() / 1000);
 
     db.serialize(() => {
-        // insert transcription record
         const stmt1 = db.prepare(
             'INSERT INTO transcriptions(jobid, email, created_at, filename) VALUES(?,?,?,?)'
         );
@@ -358,7 +369,6 @@ app.post('/transcriptions/add', (req, res) => {
                 return res.status(500).json({ error: 'db error', details: err.message });
             }
 
-            // increment usage when a new transcription is added
             const stmt2 = db.prepare(
                 'UPDATE users SET api_usage = api_usage + 1 WHERE email = ?'
             );
