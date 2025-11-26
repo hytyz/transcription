@@ -7,6 +7,7 @@ import { updateAnchorHref, applyAuthUI } from "./scripts/utils.js";
 import { loadMessages, applyTranslations, translate } from "./scripts/i18n.js";
 
 const viewCache = {}
+const VIEW_CACHE_TTL_MS = 20 * 60 * 1000; // one hour
 
 // global auth state
 let authState = false;
@@ -63,12 +64,15 @@ async function router() {
 
   let html;
 
-  // we have a cache for the html files
-  if (viewCache[fileToLoad]) {
-    html = viewCache[fileToLoad];
+  // we have a cache for the html files with TTL expiration
+  const cached = viewCache[fileToLoad];
+  const now = Date.now();
+  
+  if (cached && (now - cached.timestamp) < VIEW_CACHE_TTL_MS) {
+    html = cached.html;
   } else {
     html = await fetch(fileToLoad).then(r => r.text());
-    viewCache[fileToLoad] = html;
+    viewCache[fileToLoad] = { html, timestamp: now };
   }
   document.getElementById("app").innerHTML = html;
 
