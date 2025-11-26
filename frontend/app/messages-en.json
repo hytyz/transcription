@@ -47,13 +47,12 @@
   "modal.cancel": "cancel",
   "modal.apply": "apply",
   "modal.error.updateFile": "failed to update file",
-  "modal.error.noChanges": "please make at least one change",
+  "modal.error.noChanges": "make at least one change",
   "modal.error.invalidSpeakerPrefix": "invalid speaker name:",
   "modal.error.invalidSpeakerSuffix": "letters, numbers, spaces only",
 
   "modal.renameFile": "rename file",
   "modal.renamePlaceholder": "new file name",
-  "modal.rename.error.empty": "please enter a filename",
   "modal.rename.error.invalid": "invalid filename: use letters, numbers, spaces, underscores, or hyphens only",
   "modal.rename.error.failed": "failed to rename file",
 
