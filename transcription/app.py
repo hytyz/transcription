@@ -76,7 +76,6 @@ async def _process_queue() -> None:
         finally: 
             currently_processing = False
             queue.pop(0)
-            # clean up connections for completed job to prevent memory leak
             if jobid in connections:
                 del connections[jobid]
 
