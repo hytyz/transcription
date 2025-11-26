@@ -3,7 +3,7 @@ from transcription import generate_diarized_transcript
 from dotenv import load_dotenv; from fastapi import FastAPI
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, WebSocket, WebSocketDisconnect
 from requests.exceptions import HTTPError
-import asyncio; import os; import jwt
+import asyncio; import os; import jwt; import re
 from asyncio import AbstractEventLoop
 from typing import Final
 
@@ -20,10 +20,20 @@ queue: list[tuple[str, bytes]] = []
 currently_processing: bool = False
 connections: dict[str, list[WebSocket]] = {}
 
+def _sanitise_filename(filename: str | None) -> str:
+    """sanitises a filename to remove path traversal and special characters"""
+    if not filename:
+        return "audio"
+    sanitised = re.sub(r'[\.]{2,}', '', filename)  # remove ..
+    sanitised = re.sub(r'[/\\\0]', '', sanitised)  # remove slashes and null bytes
+    sanitised = re.sub(r'[^a-zA-Z0-9._-]', '_', sanitised)  # replace special chars
+    return sanitised[:255] if sanitised else "audio"
+
 def _post_audio_to_s3(jobid: str, audio_bytes: bytes, filename: str | None) -> None:
     """posts an audio blob and its job id to the s3 /queue endpoint"""
+    safe_filename = _sanitise_filename(filename)
     files: dict[str, tuple[str, bytes, str]] = {
-        "file": (filename or "audio", audio_bytes, "application/octet-stream")
+        "file": (safe_filename, audio_bytes, "application/octet-stream")
     }
     data: dict[str, str] = {"jobid": jobid}
     resp: Response = requests.post(f"{S3_BUCKET}/queue", files=files, data=data)

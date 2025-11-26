@@ -25,6 +25,33 @@ const s3 = new S3Client({
 
 const BUCKET = process.env.BUCKET_NAME!;
 
+/**
+ * sanitises a string to be safe for use in s3 keys
+ * removes path traversal attempts, null bytes, and special characters
+ * @param input raw string from user input
+ * @returns sanitised string safe for S3 keys
+ */
+function sanitiseForS3Key(input: string): string {
+  return input
+    .replace(/\.\./g, "")        // remove path traversal
+    .replace(/\0/g, "")          // remove null bytes
+    .replace(/[\/\\]/g, "")      // remove slashes
+    .replace(/[^a-zA-Z0-9._-]/g, "_") // replace other special chars with underscore
+    .slice(0, 255);              // limit length
+}
+
+/**
+ * extracts and sanitises file extension
+ * @param filename original filename
+ * @returns sanitised extension or "bin" as fallback
+ */
+function sanitiseExtension(filename: string): string {
+  const ext = filename.split(".").pop() ?? "bin";
+  // only allow alphanumeric extensions, max 10 chars
+  const sanitised = ext.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10);
+  return sanitised || "bin";
+}
+
 
 /**
  * returns json with a status code
@@ -76,8 +103,9 @@ const app = Bun.serve({
         );
       }
 
-      const ext = file.name.split(".").pop() ?? "bin";
-      const key = `queue/${jobid}.${ext}`;
+      const sanitisedJobid = sanitiseForS3Key(jobid);
+      const ext = sanitiseExtension(file.name);
+      const key = `queue/${sanitisedJobid}.${ext}`;
 
       await s3.send(
         new PutObjectCommand({
