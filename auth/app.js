@@ -453,5 +453,18 @@ app.get('/transcriptions/', (req, res) => {
 
 app.get('/health', (req, res) => res.json({ ok: true }));
 
-app.listen(PORT, host = '0.0.0.0', () => { console.log(`auth service running on port ${PORT}`); });
+const server = app.listen(PORT, host = '0.0.0.0', () => { console.log(`auth service running on port ${PORT}`); });
 
+function shutdown(signal) {
+    console.log(`Received ${signal}, shutting down gracefully...`);
+    server.close(() => {
+        db.close((err) => {
+            if (err) console.error('Error closing database:', err);
+            else console.log('Database connection closed.');
+            process.exit(0);
+        });
+    });
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));

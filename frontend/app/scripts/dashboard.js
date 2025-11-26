@@ -57,7 +57,6 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
             expandBtn.textContent = translate("file.expand");
         }
     });
-    card.dataset.jobid = jobid;
     card.dataset.fullText = fullText;
     card.dataset.filename = filename || "";
     card.dataset.createdAt = createdAt;
