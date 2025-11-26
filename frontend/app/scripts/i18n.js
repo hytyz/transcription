@@ -31,6 +31,7 @@ function translate(key, fallback) {
 /**
  * applies translations to elements under a root node based on data-i18n attributes
  * skips elements that have child nodes to avoid clobbering structured content
+ * also handles data-i18n-placeholder for input placeholders
  * @param {ParentNode} [root=document]
  */
 function applyTranslations(root = document) {
@@ -41,6 +42,14 @@ function applyTranslations(root = document) {
         if (el.children.length > 0) return;
         const value = translate(key, el.textContent);
         el.textContent = value;
+    });
+
+    const placeholderElements = root.querySelectorAll("[data-i18n-placeholder]");
+    placeholderElements.forEach((el) => {
+        const key = el.getAttribute("data-i18n-placeholder");
+        if (!key) return;
+        const value = translate(key, el.placeholder);
+        el.placeholder = value;
     });
 }
 

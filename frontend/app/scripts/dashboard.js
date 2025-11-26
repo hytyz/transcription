@@ -59,6 +59,8 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
     });
     card.dataset.jobid = jobid;
     card.dataset.fullText = fullText;
+    card.dataset.filename = filename || "";
+    card.dataset.createdAt = createdAt;
     let strippedFilename;
 
     if (filename) {
@@ -163,11 +165,14 @@ async function deleteTranscription(jobid, card) {
  * extracts unique speaker labels from lines that match [hh:mm:ss] NAME:
  * renders an input row for each label; validates replacements
  * applies global whole-word replacements; uploads the updated text; updates cache and the ui card
+ * also includes a rename file option
  * @param {string} jobid
  * @param {string} currentText
+ * @param {string} currentFilename
+ * @param {number} createdAt unix timestamp in seconds
  * @returns {Promise<void>}
  */
-async function openModifyModal(jobid, currentText) {
+async function openModifyModal(jobid, currentText, currentFilename, createdAt) {
     // browsers love caching stuff
     document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
     // extract unique speakers from lines: [hh:mm:ss] SPEAKER:
@@ -181,10 +186,8 @@ async function openModifyModal(jobid, currentText) {
 
     const speakers = [...speakerSet];
 
-    //load the modal template
     const modalHtml = await fetch("/templates/modal.html").then(r => r.text());
 
-    //insert modal into dom
     const wrapper = document.createElement("div");
     wrapper.innerHTML = modalHtml.trim();
     const modal = wrapper.firstElementChild;
@@ -195,7 +198,15 @@ async function openModifyModal(jobid, currentText) {
     const tableBody = modal.querySelector("#speakers-modal tbody");
     const applyBtn = modal.querySelector("#relabel-speakers-btn");
 
-    // populate rows old label new label input
+    const renameInput = modal.querySelector("#rename-input");
+
+    let strippedFilename = currentFilename || "";
+    if (strippedFilename.includes(".")) {
+        strippedFilename = strippedFilename.slice(0, strippedFilename.lastIndexOf("."));
+    }
+    renameInput.value = strippedFilename;
+    renameInput.placeholder = translate("modal.renamePlaceholder", "new file name");
+
     tableBody.innerHTML = "";
     speakers.forEach(sp => {
         const tr = document.createElement("tr");
@@ -207,7 +218,51 @@ async function openModifyModal(jobid, currentText) {
     });
 
     applyBtn.addEventListener("click", async () => {
-        // collect replacements
+        let didRename = false;
+        let didRelabel = false;
+
+        const newName = renameInput.value.trim();
+        
+        if (newName && newName !== strippedFilename) {
+            if (!/^[A-Za-z0-9 _\-]+$/.test(newName)) {
+                alert(translate("modal.rename.error.invalid"));
+                return;
+            }
+
+            const newFilename = newName + ".txt";
+
+            try {
+                const resp = await fetch(`${AUTH_URL}/transcriptions/rename`, {
+                    method: "PUT",
+                    credentials: "include",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ jobid, filename: newFilename }),
+                });
+
+                if (!resp.ok) {
+                    alert(translate("modal.rename.error.failed"));
+                    return;
+                }
+                didRename = true;
+            } catch (err) {
+                console.error("rename error:", err);
+                alert(translate("modal.rename.error.failed"));
+                return;
+            }
+
+            const card = document.querySelector(`.file-card[data-jobid="${jobid}"]`);
+            if (card) {
+                const nameEl = card.querySelector("#file-card-name");
+                if (nameEl) {
+                    nameEl.textContent = newFilename;
+                }
+                card.dataset.downloadName = formatToYYYYMMDD(new Date(createdAt * 1000)) + "_" + newName;
+                card.dataset.filename = newFilename;
+            }
+        }
+
         const inputs = tableBody.querySelectorAll("input[data-old]");
         const replacements = {};
 
@@ -218,73 +273,72 @@ async function openModifyModal(jobid, currentText) {
             if (newLabel) {
                 if (!/^[A-Za-z0-9 ]+$/.test(newLabel)) {
                     alert(translate("modal.error.invalidSpeakerPrefix") + " " + newLabel + " " + translate("modal.error.invalidSpeakerSuffix"));
-                    document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
                     return;
                 }
                 replacements[oldLabel] = newLabel;
             }
         });
 
-        if (Object.keys(replacements).length === 0) {
-            alert(translate("modal.error.dataValidation"));
-            document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
-            return;
-        }
+        if (Object.keys(replacements).length > 0) {
+            let updatedText = currentText;
+            for (const [oldSp, newSp] of Object.entries(replacements)) {
+                const re = new RegExp(`\\b${oldSp}\\b`, "g");
+                updatedText = updatedText.replace(re, newSp);
+            }
 
-        let updatedText = currentText;
-        for (const [oldSp, newSp] of Object.entries(replacements)) {
-            const re = new RegExp(`\\b${oldSp}\\b`, "g");
-            updatedText = updatedText.replace(re, newSp);
-        }
+            // PUT updated file to s3 
+            try {
+                const form = new FormData();
+                form.append("jobid", jobid);
+                form.append("file", new Blob([updatedText], { type: "text/plain" }), `${jobid}.txt`);
 
-        // PUT updated file to s3 
-        try {
-            const form = new FormData();
-            form.append("jobid", jobid);
-            form.append("file", new Blob([updatedText], { type: "text/plain" }), `${jobid}.txt`);
+                const resp = await fetch(`${BASE_URL}/s3/transcriptions`, {
+                    method: "PUT",
+                    body: form
+                });
 
-            const resp = await fetch(`${BASE_URL}/s3/transcriptions`, {
-                method: "PUT",
-                body: form
-            });
-
-            if (!resp.ok) {
+                if (!resp.ok) {
+                    alert(translate("modal.error.updateFile"));
+                    return;
+                }
+                didRelabel = true;
+            } catch (err) {
+                console.error(err);
                 alert(translate("modal.error.updateFile"));
                 return;
             }
-        } catch (err) {
-            console.error(err);
-            alert(translate("modal.error.updateFile"));
-            return;
-        }
 
-        sessionStorage.setItem(`transcription_${jobid}`, updatedText);
+            sessionStorage.setItem(`transcription_${jobid}`, updatedText);
 
-        const card = document.querySelector(`.file-card[data-jobid="${jobid}"]`);
-        if (card) {
-            card.dataset.fullText = updatedText;
+            const card = document.querySelector(`.file-card[data-jobid="${jobid}"]`);
+            if (card) {
+                card.dataset.fullText = updatedText;
 
-            const snippetEl = card.querySelector(".file-card-snippet");
-            const expandBtn = card.querySelector(".file-card-expand");
-            const bodyEl = card.querySelector(".file-card-body");
+                const snippetEl = card.querySelector(".file-card-snippet");
+                const expandBtn = card.querySelector(".file-card-expand");
+                const bodyEl = card.querySelector(".file-card-body");
 
-            if (snippetEl) {
-                const snippetPreview = updatedText.length > 500
-                    ? updatedText.slice(0, 500) + "…"
-                    : updatedText;
+                if (snippetEl) {
+                    const snippetPreview = updatedText.length > 500
+                        ? updatedText.slice(0, 500) + "…"
+                        : updatedText;
 
-                if (bodyEl && bodyEl.classList.contains("expanded")) {
-                    snippetEl.textContent = updatedText;
-                    if (expandBtn) expandBtn.textContent = translate("file.collapse");
-                } else {
-                    snippetEl.textContent = snippetPreview;
-                    if (expandBtn) expandBtn.textContent = translate("file.expand");
+                    if (bodyEl && bodyEl.classList.contains("expanded")) {
+                        snippetEl.textContent = updatedText;
+                        if (expandBtn) expandBtn.textContent = translate("file.collapse");
+                    } else {
+                        snippetEl.textContent = snippetPreview;
+                        if (expandBtn) expandBtn.textContent = translate("file.expand");
+                    }
                 }
             }
         }
 
-        window.location.reload();
-        modal.remove();
+        if (!didRename && !didRelabel) {
+            alert(translate("modal.error.noChanges", "please make at least one change"));
+            return;
+        }
+
         document.querySelectorAll(".modal-overlay").forEach(m => m.remove());
     });
 
@@ -340,7 +394,9 @@ function activateDownloadButtons() {
 
             const jobid = card.dataset.jobid;
             const currentText = card.dataset.fullText;
-            openModifyModal(jobid, currentText);
+            const currentFilename = card.dataset.filename || "";
+            const createdAt = parseInt(card.dataset.createdAt, 10) || Math.floor(Date.now() / 1000);
+            openModifyModal(jobid, currentText, currentFilename, createdAt);
             return;
         }
     });
@@ -406,7 +462,8 @@ function dashboardScript() {
 
         try {
             const res = await fetch(`${AUTH_URL}/transcriptions/`, {
-                credentials: "include"
+                credentials: "include",
+                cache: "no-store"
             });
             const data = await res.json();
 

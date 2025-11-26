@@ -37,3 +37,29 @@
     width: 100%;
     justify-content: space-between;
 }
+
+.modal-rename-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    margin-bottom: var(--space-lg);
+    gap: var(--space-sm);
+}
+
+.rename-input {
+    width: 100%;
+    padding: var(--space-xs) var(--space-sm);
+    border: var(--border-width-thick) solid var(--black);
+    font-size: 1rem;
+    box-sizing: border-box;
+    text-align: center;
+}
+
+.rename-input:focus {
+    outline: none;
+}
+
+.rename-input {
+    padding-top: var(--space-lg);
+}
