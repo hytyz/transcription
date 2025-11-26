@@ -367,7 +367,8 @@ app.get('/usage', (req, res) => {
     const validity = verifyJwt(token);
     if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
 
-    if (validity.payload.email !== 'admin@admin.com') {
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (!adminEmail || validity.payload.email !== adminEmail) {
         return res.status(403).json({ error: 'forbidden' });
     }
 

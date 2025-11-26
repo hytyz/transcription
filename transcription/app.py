@@ -76,6 +76,9 @@ async def _process_queue() -> None:
         finally: 
             currently_processing = False
             queue.pop(0)
+            # clean up connections for completed job to prevent memory leak
+            if jobid in connections:
+                del connections[jobid]
 
 
 def _post_jobid_to_auth(jobid: str, email: str, filename: str) -> None:
@@ -146,7 +149,11 @@ async def websocket_status(websocket: WebSocket):
 
         while True: await websocket.receive_text()  # not used
     except WebSocketDisconnect:
-        # cleanup
-        for _, socket_list in connections.items():
+        # cleanup websocket from connections and remove empty jobid keys
+        empty_keys = []
+        for jobid_key, socket_list in connections.items():
             if websocket in socket_list: socket_list.remove(websocket)
+            if not socket_list: empty_keys.append(jobid_key)
+        for key in empty_keys:
+            del connections[key]
         return
