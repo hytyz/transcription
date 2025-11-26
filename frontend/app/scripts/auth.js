@@ -68,8 +68,10 @@ async function login() {
         else {
             console.log(result.error);
             const authError = document.getElementById('auth-error');
-            authError.textContent = result.error;
-            authError.style.display = "block"
+            if (authError) {
+                authError.textContent = result.error;
+                authError.style.display = "block";
+            }
         }
     });
 }
@@ -118,15 +120,19 @@ async function register() {
 
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
-            authError.textContent = 'invalid email format';
-            authError.style.display = 'block';
+            if (authError) {
+                authError.textContent = 'invalid email format';
+                authError.style.display = 'block';
+            }
             return;
         }
 
         const passwordCheck = validatePassword(password);
         if (!passwordCheck.valid) {
-            authError.textContent = passwordCheck.reason;
-            authError.style.display = 'block';
+            if (authError) {
+                authError.textContent = passwordCheck.reason;
+                authError.style.display = 'block';
+            }
             return;
         }
 
@@ -138,9 +144,10 @@ async function register() {
         }
         else {
             console.log(result.error);
-            const authError = document.getElementById('auth-error');
-            authError.textContent = result.error;
-            authError.style.display = "block"
+            if (authError) {
+                authError.textContent = result.error;
+                authError.style.display = "block";
+            }
         }
     });
 }
