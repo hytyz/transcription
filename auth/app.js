@@ -204,9 +204,40 @@ app.use((req, res, next) => {
     next();
 });
 
+/**
+ * validates email format
+ * @param {string} email
+ * @returns {boolean}
+ */
+function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+
+/**
+ * validates password is > 8 characters
+ * @param {string} password
+ * @returns {{valid: boolean, reason?: string}}
+ */
+function validatePassword(password) {
+    if (password.length < 8) {
+        return { valid: false, reason: 'password must be at least 8 characters' };
+    }
+    return { valid: true };
+}
+
 app.post('/create', async (req, res) => {
     const { email, password } = req.body || {};
     if (!email || !password) { return res.status(400).json({ error: 'email and password required' }); }
+
+    if (!isValidEmail(email)) {
+        return res.status(400).json({ error: 'invalid email format' });
+    }
+
+    const passwordCheck = validatePassword(password);
+    if (!passwordCheck.valid) {
+        return res.status(400).json({ error: passwordCheck.reason });
+    }
 
     const salt = genSalt();
     let password_hash;

@@ -92,8 +92,20 @@ async function createUser(email, password) {
 }
 
 /**
+ * validates password
+ * @param {string} password
+ * @returns {{valid: boolean, reason?: string}}
+ */
+function validatePassword(password) {
+    if (password.length < 8) {
+        return { valid: false, reason: 'password must be at least 8 characters' };
+    }
+    return { valid: true };
+}
+
+/**
  * attaches a submit handler to the registration form
- * prevents default form submission; calls createUser; 
+ * prevents default form submission; validates input; calls createUser; 
  * sets auth state and navigates on success; displays an inline error on failure
  * @returns {Promise<void>}
  */
@@ -102,6 +114,22 @@ async function register() {
         e.preventDefault();
         const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
+        const authError = document.getElementById('auth-error');
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            authError.textContent = 'invalid email format';
+            authError.style.display = 'block';
+            return;
+        }
+
+        const passwordCheck = validatePassword(password);
+        if (!passwordCheck.valid) {
+            authError.textContent = passwordCheck.reason;
+            authError.style.display = 'block';
+            return;
+        }
+
         const result = await createUser(email, password);
 
         if (result.ok) {
