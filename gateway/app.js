@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 
@@ -20,13 +21,21 @@ function trackUsage(prefix) {
 }
 
 /**
- * cors with credentials and dynamic origin echo
+ * sets CORS_ORIGINS env var to comma-separated list of allowed origins
  */
-app.use((req, res, next) => {
-  const origin = req.headers.origin || "*";
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
 
-  res.header("Access-Control-Allow-Origin", origin);
-  res.header("Access-Control-Allow-Credentials", "true");
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Credentials", "true");
+  }
+
   res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type,Authorization,Cookie");
   res.header("Vary", "Origin");

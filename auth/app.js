@@ -23,14 +23,25 @@ const PUBLIC_KEY = fs.readFileSync(PUBLIC_KEY_PATH, 'utf8');
 
 /**
  * seeds some test accounts if they're not already present
- * then it checks for each sample email and derives a password hash with a salt
+ * reads from SEED_USERS env var (format: "email:password,email:password")
+ * then checks for each sample email and derives a password hash with a salt
  * then inserts the user row. errors are swallowed per user
  */
 async function seedSampleUsers() {
-    const samples = [
-        { email: "admin@admin.com", password: "111" },
-        { email: "alice@example.com", password: "123" }
-    ];
+    const seedUsersEnv = process.env.SEED_USERS || '';
+    const samples = seedUsersEnv
+        .split(',')
+        .map(pair => pair.trim())
+        .filter(pair => pair.includes(':'))
+        .map(pair => {
+            const [email, password] = pair.split(':');
+            return { email: email.trim(), password: password.trim() };
+        });
+
+    if (samples.length === 0) {
+        console.log('No seed users configured (set SEED_USERS env var)');
+        return;
+    }
 
     for (const u of samples) {
         await new Promise(resolve => {
@@ -192,17 +203,28 @@ function hashPassword(password, salt, iterations = 100_000, keylen = 64, digest 
     });
 }
 
-// cors - allow all for now:
+// cors from env
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
+
 app.use((req, res, next) => {
-    let requestOrigin = req.headers.origin || "*";
-    res.setHeader("Access-Control-Allow-Origin", requestOrigin);
+    const origin = req.headers.origin;
+
+    if (origin && ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+    }
+    
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie, Set-Cookie");
-    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Vary", "Origin");
 
     if (req.method === "OPTIONS") { return res.sendStatus(200); }
     next();
 });
+
 
 /**
  * validates email format
@@ -215,7 +237,8 @@ function isValidEmail(email) {
 }
 
 /**
- * validates password is > 8 characters
+ * validates password strength
+ * requires: min 8 chars
  * @param {string} password
  * @returns {{valid: boolean, reason?: string}}
  */
@@ -490,8 +513,8 @@ function shutdown(signal) {
     console.log(`Received ${signal}, shutting down gracefully...`);
     server.close(() => {
         db.close((err) => {
-            if (err) console.error('Error closing database:', err);
-            else console.log('Database connection closed.');
+            if (err) console.error('error closing database:', err);
+            else console.log('database connection closed.');
             process.exit(0);
         });
     });
