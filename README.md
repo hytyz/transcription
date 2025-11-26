@@ -4,7 +4,7 @@ a small, self-hosted application for diarized audio transcription with a web api
 ## architecture
 - gateway api: reverse proxy for a single origin and cors surface
 - auth api: user management; pbkdf2 password hashing; rs256 jwt in httponly cookies; users stored in a sqlite db
-- transcription api: fastapi service that runs whisperX + pyannote for diarization on (only nvidia) gpu; streams status updates over websocket; saves transcripts to s3
+- transcription api: fastapi service that runs whisperx + pyannote for diarization on (only nvidia) gpu; streams status updates over websocket; saves transcripts to s3
 - s3 api: bun server that wraps an s3-compatible endpoint for queue files and transcripts
 
 ## stretch goals:

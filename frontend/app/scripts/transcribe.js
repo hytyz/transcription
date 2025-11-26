@@ -1,9 +1,5 @@
-import { navigateTo, BASE_URL, AUTH_URL } from "../router.js";
+import { navigateTo, API_URL, WS_URL } from "../router.js";
 import { translate } from "./i18n.js";
-
-const api_url = `https://sytyz.tailc0aa4.ts.net/api`;
-let gpuURL = api_url;
-const WebSocketURL = "wss://pataka.tail2feabe.ts.net/ws/status";
 
 /**
  * wires the upload flow; handles file selection; starts a transcription job; tracks progress via websocket
@@ -57,7 +53,7 @@ function setupTranscribe() {
             progressBar.removeAttribute('value');
             progressBar.removeAttribute('max');
 
-            const res = await fetch(`https://sytyz.tailec0aa4.ts.net/api/upload`, { method: "POST", body: formData, credentials: "include" });
+            const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData, credentials: "include" });
 
             if (!res.ok) {
                 alert(translate("transcribe.error.start") + " " + res);
@@ -90,7 +86,7 @@ function setupTranscribe() {
      * @param {string} jobid
      */
     function startWebSocket(jobid) {
-        const ws = new WebSocket(`${WebSocketURL}`);
+        const ws = new WebSocket(WS_URL);
 
         ws.onopen = () => {
             ws.send(JSON.stringify({ jobid }));

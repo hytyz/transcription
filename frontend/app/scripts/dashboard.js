@@ -158,6 +158,10 @@ async function deleteTranscription(jobid, card) {
         card.remove();
     }
     console.log(`deleted transcription ${jobid} from db and s3`);
+
+    if (window.location.pathname === "/transcription") {
+        window.location.href = "/";
+    }
 }
 
 /**

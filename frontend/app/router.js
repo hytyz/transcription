@@ -13,6 +13,8 @@ let authState = false;
 
 var BASE_URL = "https://sytyz.tailec0aa4.ts.net";
 var AUTH_URL = `${BASE_URL}/auth`;
+var API_URL = `${BASE_URL}/api`;
+var WS_URL = "wss://pataka.tail2feabe.ts.net/ws/status";
 
 // mom says we have reactjs at home
 
@@ -117,4 +119,4 @@ router();
  */
 function setAuthState(state) { authState = state }
 
-export { setAuthState, BASE_URL, AUTH_URL }
+export { setAuthState, BASE_URL, AUTH_URL, API_URL, WS_URL }
