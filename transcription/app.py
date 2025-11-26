@@ -9,6 +9,7 @@ from typing import Final
 
 AUTH_URL: Final[str]  = "https://polina-gateway.fly.dev/auth"
 AUTH_PUBLIC_KEY: Final[str] = os.environ["AUTH_PUBLIC_KEY"]
+INTERNAL_TOKEN: Final[str] = os.environ.get("INTERNAL_TOKEN", "")
 S3_BUCKET: Final[str] = "https://s3-aged-water-5651.fly.dev"
 FORMAT: Final[str] = "\033[30;43m"
 RESET: Final[str] = "\033[0m"
@@ -46,7 +47,6 @@ async def broadcast(jobid: str, message: dict):
     for websocket in connections[jobid]:
         try: await websocket.send_json(message)
         except Exception: dead.append(websocket)
-    # cleanup dead sockets
     for websocket in dead: connections[jobid].remove(websocket)
 
 async def _process_queue() -> None:
@@ -81,7 +81,8 @@ async def _process_queue() -> None:
 def _post_jobid_to_auth(jobid: str, email: str, filename: str) -> None:
     """posts a transcription job id and user email to the auth api"""
     data: dict[str, str] = {"jobid": jobid, "email": email, "filename": filename}
-    resp: Response = requests.post(f"{AUTH_URL}/transcriptions/add", json=data)
+    headers: dict[str, str] = {"X-API-Key": INTERNAL_TOKEN}
+    resp: Response = requests.post(f"{AUTH_URL}/transcriptions/add", json=data, headers=headers)
     try:
         resp.raise_for_status()
     except HTTPError as e: print(f"{FORMAT}mauth error for {email}: {e} {resp.text}{RESET}"); return
