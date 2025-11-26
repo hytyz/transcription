@@ -386,6 +386,8 @@ function activateDownloadButtons() {
             const card = deleteBtn.closest(".file-card");
             if (!card) return;
 
+            if (!confirm("delete this transcription?")) return;
+
             const jobid = card.dataset.jobid;
             deleteTranscription(jobid, card);
             return;
