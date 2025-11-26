@@ -74,7 +74,7 @@ function makeProxy(prefix, target, rewrite) {
 app.use((req, res, next)=>{
     // get request path
     trackUsage(req.path);
-    next(); 
+    next();
 }
 )
 

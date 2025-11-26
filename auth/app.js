@@ -403,6 +403,25 @@ app.delete('/transcriptions/delete', (req, res) => {
     stmt.finalize();
 });
 
+app.put('/transcriptions/rename', (req, res) => {
+    const token = req.cookies.token || req.header('authorization')?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'no token' });
+    const validity = verifyJwt(token);
+    if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
+    const email = validity.payload.email;
+
+    const { jobid, filename } = req.body || {};
+    if (!jobid || !filename) return res.status(400).json({ error: 'jobid and filename required' });
+
+    const stmt = db.prepare('UPDATE transcriptions SET filename = ? WHERE jobid = ? AND email = ?');
+    stmt.run(filename, jobid, email, function (err) {
+        if (err) return res.status(500).json({ error: 'db error' });
+        if (this.changes === 0) return res.status(404).json({ error: 'transcription not found' });
+        return res.json({ ok: true, jobid, filename });
+    });
+    stmt.finalize();
+});
+
 
 app.get('/transcriptions/', (req, res) => {
     const token = req.cookies.token || req.header('authorization')?.replace('Bearer ', '');
