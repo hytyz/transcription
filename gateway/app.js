@@ -76,17 +76,12 @@ function makeProxy(prefix, target, rewrite) {
   });
 }
 
-/**
- * this runs before specific prefix proxies
- * records the raw request path
- */
-app.use((req, res, next)=>{
-    // get request path
-    trackUsage(req.path);
-    next();
-}
+app.use((req, res, next) => {
+  trackUsage(req.path.split("/")[1] ? `/${req.path.split("/")[1]}` : "/");
+  next();
+});
 
-)
+
 /**
  * auth service; strips /auth
  */
