@@ -53,6 +53,8 @@ def get_diarization_pipeline() -> DiarizationPipeline:
     if _DIARIZATION_PIPELINE is None:
         # https://github.com/m-bain/whisperX/issues/499 -- do NOT switch from the 2.1 model
         _DIARIZATION_PIPELINE = DiarizationPipeline(model_name="pyannote/speaker-diarization@2.1", use_auth_token=_HF_TOKEN, device=_DEVICE)
-        try: _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": DIARIZATION_CLUSTER_THRESHOLD}}) 
-        except Exception as e: pass
+        try:
+            _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": DIARIZATION_CLUSTER_THRESHOLD}})
+        except Exception as e:
+            print(f"did not set diarization clustering threshold: {e}")
     return cast(DiarizationPipeline, _DIARIZATION_PIPELINE)
