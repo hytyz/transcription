@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import { logger } from "./logger.js";
 
 const app = express();
 
@@ -27,6 +28,11 @@ const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || '')
     .split(',')
     .map(o => o.trim())
     .filter(Boolean);
+
+logger.info('gateway initializing', { 
+    allowedOrigins: ALLOWED_ORIGINS.length,
+    nodeEnv: process.env.NODE_ENV 
+});
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
@@ -68,6 +74,18 @@ function makeProxy(prefix, target, rewrite) {
     secure: true,
     onProxyReq: (proxyReq, req, res) => {
       trackUsage(prefix);
+      req.proxyStartTime = Date.now();
+      logger.debug('proxy request started', { prefix, target, path: req.path });
+    },
+    onProxyRes: (proxyRes, req, res) => {
+      const duration = Date.now() - (req.proxyStartTime || Date.now());
+      logger.proxy(prefix, target, req.path, duration);
+    },
+    onError: (err, req, res) => {
+      logger.proxyError(prefix, target, err);
+    },
+    onProxyReqWs: (proxyReq, req, socket, options, head) => {
+      logger.wsUpgrade(prefix, target, req.url);
     },
     pathRewrite: rewrite,
     headers: {
@@ -76,11 +94,28 @@ function makeProxy(prefix, target, rewrite) {
   });
 }
 
+/**
+ * logs all incoming requests
+ */
 app.use((req, res, next) => {
-  trackUsage(req.path.split("/")[1] ? `/${req.path.split("/")[1]}` : "/");
-  next();
+    req.startTime = Date.now();
+    const prefix = req.path.split('/')[1] ? `/${req.path.split('/')[1]}` : '/';
+    logger.request(req, prefix);
+    
+    trackUsage(req.path);
+    
+    res.on('finish', () => {
+        const duration = Date.now() - req.startTime;
+        logger.debug('request completed', { 
+            method: req.method, 
+            path: req.path, 
+            status: res.statusCode,
+            durationMs: duration 
+        });
+    });
+    
+    next();
 });
-
 
 /**
  * auth service; strips /auth
@@ -123,6 +158,7 @@ app.use(
  * json endpoint to inspect usage counters
  */
 app.get("/__usage", (req, res) => {
+  logger.debug('usage stats requested', { stats: usageStats });
   res.json(usageStats);
 });
 
@@ -140,5 +176,5 @@ app.use(
 
 
 app.listen(8082, () => {
-  console.log("proxy running at http://localhost:8082");
+  logger.info('gateway started', { port: 8082, url: 'http://localhost:8082' });
 });
