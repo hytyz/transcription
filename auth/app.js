@@ -5,6 +5,9 @@ import express from 'express';
 const sqlite3 = require('sqlite3').verbose();
 import cookieParser from 'cookie-parser';
 import { json } from 'body-parser';
+import { createLogger } from './logger.js';
+
+const logger = createLogger('auth');
 
 const app = express();
 app.use(json());
@@ -18,8 +21,10 @@ const PRIVATE_KEY_PATH = process.env.PRIVATE_KEY_PATH;
 const PUBLIC_KEY_PATH = process.env.PUBLIC_KEY_PATH;
 const JWT_EXP_SECONDS = parseInt(process.env.JWT_EXP_SECONDS, 10);
 
+logger.info('loading rsa keys', { privatePath: PRIVATE_KEY_PATH, publicPath: PUBLIC_KEY_PATH });
 const PRIVATE_KEY = readFileSync(PRIVATE_KEY_PATH, 'utf8');
 const PUBLIC_KEY = readFileSync(PUBLIC_KEY_PATH, 'utf8');
+logger.info('rsa keys loaded successfully');
 
 /**
  * seeds some test accounts if they're not already present
@@ -39,18 +44,23 @@ async function seedSampleUsers() {
         });
 
     if (samples.length === 0) {
-        console.log('No seed users configured (set SEED_USERS env var)');
+        logger.info('no seed users configured');
         return;
     }
+
+    logger.info('seeding sample users', { count: samples.length });
 
     for (const u of samples) {
         await new Promise(resolve => {
             db.get(`SELECT email FROM users WHERE email = ?`, [u.email], async (err, row) => {
                 if (err) {
-                    console.error(`error checking if user ${u.email} exists:`, err.message);
+                    logger.error('error checking if user exists', { email: u.email, error: err.message });
                     return resolve();
                 }
-                if (row) return resolve(); // user already exists
+                if (row) {
+                    logger.debug('seed user already exists', { email: u.email });
+                    return resolve();
+                }
 
                 const salt = genSalt();
                 const hash = await hashPassword(u.password, salt);
@@ -62,9 +72,9 @@ async function seedSampleUsers() {
 
                 stmt.run(u.email, hash, salt, err => {
                     if (err) {
-                        console.error(`error seeding user ${u.email}:`, err.message);
+                        logger.error('error seeding user', { email: u.email, error: err.message });
                     } else {
-                        console.log(`seeded sample user: ${u.email}`);
+                        logger.info('seeded sample user', { email: u.email });
                     }
                     resolve();
                 });
@@ -76,6 +86,8 @@ async function seedSampleUsers() {
 }
 
 const db = new sqlite3.Database(DB_PATH);
+logger.info('database connection opened', { path: DB_PATH });
+
 db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS users (
     email TEXT PRIMARY KEY,
@@ -83,6 +95,7 @@ db.serialize(() => {
     salt TEXT NOT NULL,
     api_usage INTEGER NOT NULL DEFAULT 0
   );`);
+    logger.db('ensured users table exists');
 
     // transcriptions table
     db.run(`CREATE TABLE IF NOT EXISTS transcriptions (
@@ -92,12 +105,13 @@ db.serialize(() => {
         filename TEXT,
         FOREIGN KEY(email) REFERENCES users(email) ON DELETE CASCADE
     );`);
+    logger.db('ensured transcriptions table exists');
 
     // look at this absolutely professional use of .then and .catch
     seedSampleUsers().then(() => {
-        console.log("sample users seeding complete.");
+        logger.info("sample users seeding complete");
     }).catch(err => {
-        console.error("error seeding sample users:", err);
+        logger.error("error seeding sample users", { error: err.message });
     });
 
 });
@@ -287,30 +301,54 @@ function csrfProtection(req, res, next) {
 
 app.use(csrfProtection);
 
+app.use((req, res, next) => {
+    req.startTime = Date.now();
+    logger.request(req);
+    
+    res.on('finish', () => {
+        const duration = Date.now() - req.startTime;
+        logger.response(req, res.statusCode, duration);
+    });
+    
+    next();
+});
+
 app.post('/create', authLimiter, async (req, res) => {
     const { email, password } = req.body || {};
-    if (!email || !password) { return res.status(400).json({ error: 'email and password required' }); }
+    if (!email || !password) { 
+        logger.warn('registration failed: missing credentials');
+        return res.status(400).json({ error: 'email and password required' }); 
+    }
 
     if (!isValidEmail(email)) {
+        logger.warn('registration failed: invalid email', { email });
         return res.status(400).json({ error: 'invalid email format' });
     }
 
     const passwordCheck = validatePassword(password);
     if (!passwordCheck.valid) {
+        logger.warn('registration failed: weak password', { email });
         return res.status(400).json({ error: passwordCheck.reason });
     }
 
     const salt = genSalt();
     let password_hash;
     try { password_hash = await hashPassword(password, salt); }
-    catch (err) { return res.status(500).json({ error: 'hashing failure' }); }
+    catch (err) { 
+        logger.error('registration failed: hashing error', { email, error: err.message });
+        return res.status(500).json({ error: 'hashing failure' }); 
+    }
     
     db.run(
         'INSERT INTO users(email, password_hash, salt, api_usage) VALUES(?,?,?,0)',
         [email, password_hash, salt],
         function (err) {
             if (err) {
-                if (err.message && err.message.includes('UNIQUE')) { return res.status(409).json({ error: 'user already exists' }); }
+                if (err.message && err.message.includes('UNIQUE')) { 
+                    logger.warn('registration failed: user exists', { email });
+                    return res.status(409).json({ error: 'user already exists' }); 
+                }
+                logger.error('registration failed: db error', { email, error: err.message });
                 return res.status(500).json({ error: 'db error', details: err.message });
             }
             const token = signJwt({ email }, { expSeconds: JWT_EXP_SECONDS });
@@ -322,6 +360,7 @@ app.post('/create', authLimiter, async (req, res) => {
                 maxAge: JWT_EXP_SECONDS * 1000,
                 path: '/'
             });
+            logger.auth('user registered', email);
             return res.json({ ok: true });
         }
     );
@@ -329,24 +368,38 @@ app.post('/create', authLimiter, async (req, res) => {
 
 app.post('/login', authLimiter, async (req, res) => {
     if (!req.is('application/json')) {
+        logger.warn('login failed: wrong content-type', { contentType: req.get('content-type') });
         return res.status(415).json({ error: 'content-type must be application/json' });
     }
 
     const { email, password } = req.body;
 
-    if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+    if (!email || !password) {
+        logger.warn('login failed: missing credentials');
+        return res.status(400).json({ error: 'email and password required' });
+    }
 
     db.get('SELECT email, password_hash, salt FROM users WHERE email = ?', [email], async (err, row) => {
-        if (err) return res.status(500).json({ error: 'db error' });
-        if (!row) return res.status(401).json({ error: 'invalid credentials' });
+        if (err) {
+            logger.error('login failed: db error', { email, error: err.message });
+            return res.status(500).json({ error: 'db error' });
+        }
+        if (!row) {
+            logger.warn('login failed: user not found', { email });
+            return res.status(401).json({ error: 'invalid credentials' });
+        }
 
         let computed;
         try { computed = await hashPassword(password, row.salt); } catch (e) {
+            logger.error('login failed: hashing error', { email, error: e.message });
             return res.status(500).json({ error: 'hashing failure' });
         }
         // constant-time comparison to avoid timing side channels on invalid credentials
         const match = timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(row.password_hash, 'hex'));
-        if (!match) return res.status(401).json({ error: 'invalid credentials' });
+        if (!match) {
+            logger.warn('login failed: invalid password', { email });
+            return res.status(401).json({ error: 'invalid credentials' });
+        }
 
         const token = signJwt({ email }, { expSeconds: JWT_EXP_SECONDS });
 
@@ -357,7 +410,7 @@ app.post('/login', authLimiter, async (req, res) => {
             maxAge: JWT_EXP_SECONDS * 1000,
             path: '/'
         });
-
+        logger.auth('user logged in', email);
         return res.json({ ok: true });
     });
 });
@@ -369,32 +422,54 @@ app.post('/logout', (req, res) => {
         sameSite: 'none',
         path: '/'
     });
-
+    logger.auth('user logged out');
     return res.json({ ok: true });
 });
 
 app.get('/me', (req, res) => {
     const token = req.cookies.token || req.header('authorization')?.replace('Bearer ', '');
-    if (!token) return res.status(401).json({ error: 'no token' });
+    if (!token) {
+        logger.warn('auth check failed: no token');
+        return res.status(401).json({ error: 'no token' });
+    }
     const validity = verifyJwt(token);
-    if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
+    if (!validity.valid) {
+        logger.warn('auth check failed: invalid token', { error: validity.error });
+        return res.status(401).json({ error: 'invalid token', details: validity.error });
+    }
     return res.json({ payload: validity.payload });
 });
 
 app.post('/increment', (req, res) => {
     const token = req.cookies.token || req.header('authorization')?.replace('Bearer ', '');
-    if (!token) return res.status(401).json({ error: 'no token' });
+    if (!token) {
+        logger.warn('increment failed: no token');
+        return res.status(401).json({ error: 'no token' });
+    }
     const validity = verifyJwt(token);
-    if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
+    if (!validity.valid) {
+        logger.warn('increment failed: invalid token', { error: validity.error });
+        return res.status(401).json({ error: 'invalid token', details: validity.error });
+    }
     const email = validity.payload.email;
-    if (!email) return res.status(400).json({ error: 'email required' });
+    if (!email) {
+        logger.warn('increment failed: no email in token');
+        return res.status(400).json({ error: 'email required' });
+    }
 
     db.run(
         'UPDATE users SET api_usage = api_usage + 1 WHERE email = ?',
         [email],
         function (err) {
-            if (err) return res.status(500).json({ error: 'db error' });
-            if (this.changes === 0) return res.status(404).json({ error: 'user not found' });
+            if (err) {
+                logger.error('increment failed: db error', { email, error: err.message });
+                return res.status(500).json({ error: 'db error' });
+            }
+            if (this.changes === 0) {
+                logger.warn('increment failed: user not found', { email });
+                return res.status(404).json({ error: 'user not found' });
+            }
+            logger.db('api usage incremented', { email });
             return res.json({ ok: true, email });
         }
     );
@@ -402,31 +477,54 @@ app.post('/increment', (req, res) => {
 
 app.get('/usage', (req, res) => {
     const token = req.cookies.token || req.header('authorization')?.replace('Bearer ', '');
-    if (!token) return res.status(401).json({ error: 'no token' });
+    if (!token) {
+        logger.warn('usage check failed: no token');
+        return res.status(401).json({ error: 'no token' });
+    }
     const validity = verifyJwt(token);
-    if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
+    if (!validity.valid) {
+        logger.warn('usage check failed: invalid token', { error: validity.error });
+        return res.status(401).json({ error: 'invalid token', details: validity.error });
+    }
 
     const adminEmail = process.env.ADMIN_EMAIL;
     if (!adminEmail || validity.payload.email !== adminEmail) {
+        logger.warn('usage check failed: forbidden', { email: validity.payload.email });
         return res.status(403).json({ error: 'forbidden' });
     }
 
     db.all('SELECT email, api_usage FROM users ORDER BY email', [], (err, rows) => {
-        if (err) return res.status(500).json({ error: 'db error' });
+        if (err) {
+            logger.error('usage check failed: db error', { error: err.message });
+            return res.status(500).json({ error: 'db error' });
+        }
+        logger.db('admin usage query', { rowCount: rows.length });
         return res.json({ users: rows });
     });
 });
 
 app.get('/myusage', (req, res) => {
     const token = req.cookies.token || req.header('authorization')?.replace('Bearer ', '');
-    if (!token) return res.status(401).json({ error: 'no token' });
+    if (!token) {
+        logger.warn('myusage check failed: no token');
+        return res.status(401).json({ error: 'no token' });
+    }
     const validity = verifyJwt(token);
-    if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
+    if (!validity.valid) {
+        logger.warn('myusage check failed: invalid token', { error: validity.error });
+        return res.status(401).json({ error: 'invalid token', details: validity.error });
+    }
     const email = validity.payload.email;
 
     db.get('SELECT api_usage FROM users WHERE email = ?', [email], (err, row) => {
-        if (err) return res.status(500).json({ error: 'db error' });
-        if (!row) return res.status(404).json({ error: 'user not found' });
+        if (err) {
+            logger.error('myusage check failed: db error', { email, error: err.message });
+            return res.status(500).json({ error: 'db error' });
+        }
+        if (!row) {
+            logger.warn('myusage check failed: user not found', { email });
+            return res.status(404).json({ error: 'user not found' });
+        }
         return res.json({ email, usage: row.api_usage });
     });
 });
@@ -436,16 +534,18 @@ app.post('/transcriptions/add', (req, res) => {
     const expectedApiKey = process.env.INTERNAL_TOKEN;
     
     if (!expectedApiKey) {
-        console.error('INTERNAL_TOKEN not configured');
+        logger.error('transcription add failed: INTERNAL_TOKEN not configured');
         return res.status(500).json({ error: 'server misconfiguration' });
     }
     
     if (!apiKey || apiKey !== expectedApiKey) {
+        logger.warn('transcription add failed: invalid api key');
         return res.status(401).json({ error: 'unauthorized: invalid or missing API key' });
     }
 
     const { email, jobid, filename } = req.body || {};
     if (!email || !jobid || !filename) {
+        logger.warn('transcription add failed: missing fields', { email, jobid, filename: !!filename });
         return res.status(400).json({ error: "email, jobid, and filename required" });
     }
 
@@ -457,8 +557,10 @@ app.post('/transcriptions/add', (req, res) => {
         function (err) {
             if (err) {
                 if (err.message.includes('UNIQUE')) {
+                    logger.warn('transcription add failed: duplicate jobid', { jobid, email });
                     return res.status(409).json({ error: 'jobid already exists' });
                 }
+                logger.error('transcription add failed: db error', { jobid, email, error: err.message });
                 return res.status(500).json({ error: 'db error', details: err.message });
             }
 
@@ -467,13 +569,16 @@ app.post('/transcriptions/add', (req, res) => {
                 [email],
                 function (err) {
                     if (err) {
+                        logger.error('transcription add: usage increment failed', { email, error: err.message });
                         return res.status(500).json({ error: 'db error (usage increment)' });
                     }
 
                     if (this.changes === 0) {
+                        logger.warn('transcription add: user not found for increment', { email });
                         return res.status(404).json({ error: 'user not found' });
                     }
 
+                    logger.db('transcription added', { jobid, email, filename });
                     return res.status(201).json({
                         ok: true,
                         jobid,
@@ -488,20 +593,36 @@ app.post('/transcriptions/add', (req, res) => {
 
 app.delete('/transcriptions/delete', (req, res) => {
     const token = req.cookies.token || req.header('authorization')?.replace('Bearer ', '');
-    if (!token) return res.status(401).json({ error: 'no token' });
+    if (!token) {
+        logger.warn('transcription delete failed: no token');
+        return res.status(401).json({ error: 'no token' });
+    }
     const validity = verifyJwt(token);
-    if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
+    if (!validity.valid) {
+        logger.warn('transcription delete failed: invalid token', { error: validity.error });
+        return res.status(401).json({ error: 'invalid token', details: validity.error });
+    }
     const email = validity.payload.email;
 
     const { jobid } = req.body || {};
-    if (!jobid) return res.status(400).json({ error: 'jobid required' });
+    if (!jobid) {
+        logger.warn('transcription delete failed: missing jobid', { email });
+        return res.status(400).json({ error: 'jobid required' });
+    }
 
     db.run(
         'DELETE FROM transcriptions WHERE jobid = ? AND email = ?',
         [jobid, email],
         function (err) {
-            if (err) return res.status(500).json({ error: 'db error' });
-            if (this.changes === 0) return res.status(404).json({ error: 'transcription not found' });
+            if (err) {
+                logger.error('transcription delete failed: db error', { jobid, email, error: err.message });
+                return res.status(500).json({ error: 'db error' });
+            }
+            if (this.changes === 0) {
+                logger.warn('transcription delete failed: not found', { jobid, email });
+                return res.status(404).json({ error: 'transcription not found' });
+            }
+            logger.db('transcription deleted', { jobid, email });
             return res.json({ ok: true, jobid });
         }
     );
@@ -509,20 +630,36 @@ app.delete('/transcriptions/delete', (req, res) => {
 
 app.put('/transcriptions/rename', (req, res) => {
     const token = req.cookies.token || req.header('authorization')?.replace('Bearer ', '');
-    if (!token) return res.status(401).json({ error: 'no token' });
+    if (!token) {
+        logger.warn('transcription rename failed: no token');
+        return res.status(401).json({ error: 'no token' });
+    }
     const validity = verifyJwt(token);
-    if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
+    if (!validity.valid) {
+        logger.warn('transcription rename failed: invalid token', { error: validity.error });
+        return res.status(401).json({ error: 'invalid token', details: validity.error });
+    }
     const email = validity.payload.email;
 
     const { jobid, filename } = req.body || {};
-    if (!jobid || !filename) return res.status(400).json({ error: 'jobid and filename required' });
+    if (!jobid || !filename) {
+        logger.warn('transcription rename failed: missing fields', { email, jobid: !!jobid, filename: !!filename });
+        return res.status(400).json({ error: 'jobid and filename required' });
+    }
 
     db.run(
         'UPDATE transcriptions SET filename = ? WHERE jobid = ? AND email = ?',
         [filename, jobid, email],
         function (err) {
-            if (err) return res.status(500).json({ error: 'db error' });
-            if (this.changes === 0) return res.status(404).json({ error: 'transcription not found' });
+            if (err) {
+                logger.error('transcription rename failed: db error', { jobid, email, error: err.message });
+                return res.status(500).json({ error: 'db error' });
+            }
+            if (this.changes === 0) {
+                logger.warn('transcription rename failed: not found', { jobid, email });
+                return res.status(404).json({ error: 'transcription not found' });
+            }
+            logger.db('transcription renamed', { jobid, email, filename });
             return res.json({ ok: true, jobid, filename });
         }
     );
@@ -531,16 +668,26 @@ app.put('/transcriptions/rename', (req, res) => {
 
 app.get('/transcriptions/', (req, res) => {
     const token = req.cookies.token || req.header('authorization')?.replace('Bearer ', '');
-    if (!token) return res.status(401).json({ error: 'no token' });
+    if (!token) {
+        logger.warn('transcriptions list failed: no token');
+        return res.status(401).json({ error: 'no token' });
+    }
     const validity = verifyJwt(token);
-    if (!validity.valid) return res.status(401).json({ error: 'invalid token', details: validity.error });
+    if (!validity.valid) {
+        logger.warn('transcriptions list failed: invalid token', { error: validity.error });
+        return res.status(401).json({ error: 'invalid token', details: validity.error });
+    }
     const email = validity.payload.email;
 
     db.all(
         'SELECT jobid, created_at, filename FROM transcriptions WHERE email = ? ORDER BY created_at DESC',
         [email],
         (err, rows) => {
-            if (err) return res.status(500).json({ error: 'db error' });
+            if (err) {
+                logger.error('transcriptions list failed: db error', { email, error: err.message });
+                return res.status(500).json({ error: 'db error' });
+            }
+            logger.db('transcriptions listed', { email, count: rows.length });
             return res.json({ email, transcriptions: rows });
         }
     );
@@ -549,14 +696,19 @@ app.get('/transcriptions/', (req, res) => {
 
 app.get('/health', (req, res) => res.json({ ok: true }));
 
-const server = app.listen(PORT, host = '0.0.0.0', () => { console.log(`auth service running on port ${PORT}`); });
+const server = app.listen(PORT, host = '0.0.0.0', () => { 
+    logger.info('auth service started', { port: PORT, host: '0.0.0.0' });
+});
 
 function shutdown(signal) {
-    console.log(`Received ${signal}, shutting down gracefully...`);
+    logger.info('shutdown initiated', { signal });
     server.close(() => {
         db.close((err) => {
-            if (err) console.error('error closing database:', err);
-            else console.log('database connection closed.');
+            if (err) {
+                logger.error('error closing database', { error: err.message });
+            } else {
+                logger.info('database connection closed');
+            }
             process.exit(0);
         });
     });
