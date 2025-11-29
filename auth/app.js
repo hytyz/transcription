@@ -249,7 +249,14 @@ function validatePassword(password) {
     return { valid: true };
 }
 
-app.post('/create', async (req, res) => {
+const rateLimit = require('express-rate-limit');
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5,
+    message: { error: 'too many attempts, please try again later' }
+});
+
+app.post('/create', authLimiter, async (req, res) => {
     const { email, password } = req.body || {};
     if (!email || !password) { return res.status(400).json({ error: 'email and password required' }); }
 
@@ -289,8 +296,7 @@ app.post('/create', async (req, res) => {
     );
 });
 
-
-app.post('/login', async (req, res) => {
+app.post('/login', authLimiter, async (req, res) => {
     if (!req.is('application/json')) {
         return res.status(415).json({ error: 'content-type must be application/json' });
     }
