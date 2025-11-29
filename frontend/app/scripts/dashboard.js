@@ -1,5 +1,6 @@
 import { BASE_URL, AUTH_URL } from "../router.js";
 import { translate, applyTranslations } from "./i18n.js";
+import { apiDelete, apiPut, apiFetch } from "./api.js";
 
 /**
  * builds a file card element from a template and inits its expand behavior
@@ -117,14 +118,7 @@ async function deleteTranscription(jobid, card) {
 
     let dbRes;
     try {
-        dbRes = await fetch(`${AUTH_URL}/transcriptions/delete`, {
-            method: "DELETE",
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ jobid }),
-        });
+        dbRes = await apiDelete(`${AUTH_URL}/transcriptions/delete`, { jobid });
 
         if (!dbRes.ok) {
             const err = await dbRes.json().catch(() => ({}));
@@ -138,9 +132,8 @@ async function deleteTranscription(jobid, card) {
     }
     let s3Res;
     try {
-        s3Res = await fetch(`${BASE_URL}/s3/transcriptions/${jobid}`, {
+        s3Res = await apiFetch(`${BASE_URL}/s3/transcriptions/${jobid}`, {
             method: "DELETE",
-            credentials: "include",
         });
 
         if (!s3Res.ok) {
@@ -235,14 +228,7 @@ async function openModifyModal(jobid, currentText, currentFilename, createdAt) {
             const newFilename = newName + ".txt";
 
             try {
-                const resp = await fetch(`${AUTH_URL}/transcriptions/rename`, {
-                    method: "PUT",
-                    credentials: "include",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ jobid, filename: newFilename }),
-                });
+                const resp = await apiPut(`${AUTH_URL}/transcriptions/rename`, { jobid, filename: newFilename });
 
                 if (!resp.ok) {
                     alert(translate("modal.rename.error.failed"));
@@ -295,7 +281,7 @@ async function openModifyModal(jobid, currentText, currentFilename, createdAt) {
                 form.append("jobid", jobid);
                 form.append("file", new Blob([updatedText], { type: "text/plain" }), `${jobid}.txt`);
 
-                const resp = await fetch(`${BASE_URL}/s3/transcriptions`, {
+                const resp = await apiFetch(`${BASE_URL}/s3/transcriptions`, {
                     method: "PUT",
                     body: form
                 });

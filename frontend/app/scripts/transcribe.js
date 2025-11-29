@@ -1,5 +1,6 @@
 import { navigateTo, API_URL, WS_URL } from "../router.js";
 import { translate } from "./i18n.js";
+import { apiFetch } from "./api.js";
 
 /**
  * wires the upload flow; handles file selection; starts a transcription job; tracks progress via websocket
@@ -53,7 +54,7 @@ function setupTranscribe() {
             progressBar.removeAttribute('value');
             progressBar.removeAttribute('max');
 
-            const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData, credentials: "include" });
+            const res = await apiFetch(`${API_URL}/upload`, { method: "POST", body: formData });
 
             if (!res.ok) {
                 alert(translate("transcribe.error.start") + " " + res);
