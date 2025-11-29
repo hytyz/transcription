@@ -8,6 +8,12 @@ import dotenv from "dotenv";
 dotenv.config();
 declare const Bun: any;
 
+const requiredEnvVars = ["AWS_REGION", "AWS_ENDPOINT_URL", "BUCKET_NAME", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"];
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    throw new Error(`missing required environment variable: ${envVar}`);
+  }
+}
 /**
  * aws s3 compatible client
  * endpoint and credentials come from environment variables
@@ -85,10 +91,10 @@ function json(obj: any, status = 200) {
  */
 const app = Bun.serve({
   port: 6767,
-  async fetch(req: { url: string | { toString: () => string; }; method: string; formData: () => any; }) {
+  async fetch(req: Request) {
     const url = new URL(req.url);
     const pathname = url.pathname;
-    
+
     // POST /queue  — upload audio file under {jobid}.{ext}
     if (req.method === "POST" && pathname === "/queue") {
       const form = await req.formData();
@@ -131,8 +137,9 @@ const app = Bun.serve({
         );
       }
 
-      const key = `transcriptions/${jobid}.txt`;
-      console.log("PUT transcription", { jobid, key });
+      const sanitisedJobid = sanitiseForS3Key(jobid);
+      const key = `transcriptions/${sanitisedJobid}.txt`;
+      console.log("POST transcription", { jobid: sanitisedJobid, key });
       await s3.send(
         new PutObjectCommand({
           Bucket: BUCKET,
@@ -188,8 +195,9 @@ const app = Bun.serve({
         );
       }
 
-      const key = `transcriptions/${jobid}.txt`;
-      console.log("PUT transcription", { jobid, key });
+      const sanitisedJobid = sanitiseForS3Key(jobid);
+      const key = `transcriptions/${sanitisedJobid}.txt`;
+      console.log("PUT transcription", { jobid: sanitisedJobid, key });
       await s3.send(
         new PutObjectCommand({
           Bucket: BUCKET,
@@ -216,7 +224,7 @@ const app = Bun.serve({
       } else {
         return json({ status: "error", message: "bad path" }, 400);
       }
-    
+
       console.log("attempt to delete: ", Key)
       try {
         await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key }));
