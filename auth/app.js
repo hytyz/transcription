@@ -1,13 +1,13 @@
-require('dotenv').config();
-const fs = require('fs');
-const crypto = require('crypto');
-const express = require('express');
+import 'dotenv/config';
+import { readFileSync } from 'fs';
+import { createSign, createVerify, randomBytes, pbkdf2, timingSafeEqual } from 'crypto';
+import express from 'express';
 const sqlite3 = require('sqlite3').verbose();
-const cookieParser = require('cookie-parser');
-const bodyParser = require('body-parser');
+import cookieParser from 'cookie-parser';
+import { json } from 'body-parser';
 
 const app = express();
-app.use(bodyParser.json());
+app.use(json());
 app.use(cookieParser());
 
 app.set('trust proxy', true); // need to try fly proxy for cookies
@@ -18,8 +18,8 @@ const PRIVATE_KEY_PATH = process.env.PRIVATE_KEY_PATH;
 const PUBLIC_KEY_PATH = process.env.PUBLIC_KEY_PATH;
 const JWT_EXP_SECONDS = parseInt(process.env.JWT_EXP_SECONDS, 10);
 
-const PRIVATE_KEY = fs.readFileSync(PRIVATE_KEY_PATH, 'utf8');
-const PUBLIC_KEY = fs.readFileSync(PUBLIC_KEY_PATH, 'utf8');
+const PRIVATE_KEY = readFileSync(PRIVATE_KEY_PATH, 'utf8');
+const PUBLIC_KEY = readFileSync(PUBLIC_KEY_PATH, 'utf8');
 
 /**
  * seeds some test accounts if they're not already present
@@ -149,7 +149,7 @@ function signJwt(payloadObj, opts = {}) {
     const payloadB64 = base64url(JSON.stringify(payload));
 
     const signingInput = `${headerB64}.${payloadB64}`;
-    const signer = crypto.createSign('RSA-SHA256');
+    const signer = createSign('RSA-SHA256');
     signer.update(signingInput);
     signer.end();
     const signature = signer.sign(PRIVATE_KEY);
@@ -172,7 +172,7 @@ function verifyJwt(token) {
         const signingInput = `${headerB64}.${payloadB64}`;
         const signature = base64urlDecodeToBuffer(sigB64);
 
-        const verifier = crypto.createVerify('RSA-SHA256');
+        const verifier = createVerify('RSA-SHA256');
         verifier.update(signingInput);
         verifier.end();
         const ok = verifier.verify(PUBLIC_KEY, signature);
@@ -188,7 +188,7 @@ function verifyJwt(token) {
 }
 
 /** generates a random hex salt */
-function genSalt(len = 16) { return crypto.randomBytes(len).toString('hex'); }
+function genSalt(len = 16) { return randomBytes(len).toString('hex'); }
 
 /**
  * derives a password hash using pbkdf2 with the passed in salt
@@ -201,7 +201,7 @@ function genSalt(len = 16) { return crypto.randomBytes(len).toString('hex'); }
  */
 function hashPassword(password, salt, iterations = 100_000, keylen = 64, digest = 'sha512') {
     return new Promise((resolve, reject) => {
-        crypto.pbkdf2(password, salt, iterations, keylen, digest, (err, derivedKey) => {
+        pbkdf2(password, salt, iterations, keylen, digest, (err, derivedKey) => {
             if (err) return reject(err);
             resolve(derivedKey.toString('hex'));
         });
@@ -254,7 +254,7 @@ function validatePassword(password) {
     return { valid: true };
 }
 
-const rateLimit = require('express-rate-limit');
+import rateLimit from 'express-rate-limit';
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5,
@@ -319,7 +319,7 @@ app.post('/login', authLimiter, async (req, res) => {
             return res.status(500).json({ error: 'hashing failure' });
         }
         // constant-time comparison to avoid timing side channels on invalid credentials
-        const match = crypto.timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(row.password_hash, 'hex'));
+        const match = timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(row.password_hash, 'hex'));
         if (!match) return res.status(401).json({ error: 'invalid credentials' });
 
         const token = signJwt({ email }, { expSeconds: JWT_EXP_SECONDS });
