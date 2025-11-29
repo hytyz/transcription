@@ -1,4 +1,5 @@
 import { navigateTo, setAuthState, AUTH_URL } from "../router.js";
+import { apiPost } from "./api.js";
 
 /**
  * initializes auth state by calling the /me endpoint
@@ -19,13 +20,7 @@ async function initAuth(authUrl = AUTH_URL) {
  * @returns {Promise<object>}
  */
 async function loginUser(email, password) {
-    const res = await fetch(`${AUTH_URL}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-        credentials: 'include',
-    });
-
+    const res = await apiPost(`${AUTH_URL}/login`, { email, password });
     return res.json();
 }
 
@@ -35,10 +30,7 @@ async function loginUser(email, password) {
  * @returns {Promise<void>}
  */
 async function logoutUser() {
-    const res = await fetch(`${AUTH_URL}/logout`, {
-        method: 'POST',
-        credentials: 'include',
-    });
+    const res = await apiPost(`${AUTH_URL}/logout`, {});
 
     if (res.ok) {
         setAuthState(false)
@@ -84,12 +76,7 @@ async function login() {
  * @returns {Promise<object>}
  */
 async function createUser(email, password) {
-    const res = await fetch(`${AUTH_URL}/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-        credentials: 'include',
-    });
+    const res = await apiPost(`${AUTH_URL}/create`, { email, password });
     return res.json();
 }
 

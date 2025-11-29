@@ -261,6 +261,32 @@ const authLimiter = rateLimit({
     message: { error: 'too many attempts, please try again later' }
 });
 
+/**
+ * csrf middleware with custom header verification
+ * afaik browsers prevent cross-origin js from setting custom headers,
+ * so requiring x-requested-with would prove request came from my frontend
+ * this only applies to POST, PUT, and DELETE
+ */
+function csrfProtection(req, res, next) {
+    const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+    if (safeMethods.includes(req.method)) {
+        return next();
+    }
+    
+    if (req.header('X-API-Key')) {
+        return next();
+    }
+    
+    const xRequestedWith = req.header('X-Requested-With');
+    if (xRequestedWith !== 'XMLHttpRequest') {
+        return res.status(403).json({ error: 'csrf validation failed: missing x-requested-with header' });
+    }
+    
+    next();
+}
+
+app.use(csrfProtection);
+
 app.post('/create', authLimiter, async (req, res) => {
     const { email, password } = req.body || {};
     if (!email || !password) { return res.status(400).json({ error: 'email and password required' }); }
