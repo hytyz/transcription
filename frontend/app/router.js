@@ -5,17 +5,18 @@ import { setupTranscribe } from "./scripts/transcribe.js";
 import { setupTranscription } from "./scripts/transcription.js";
 import { updateAnchorHref, applyAuthUI } from "./scripts/utils.js";
 import { loadMessages, applyTranslations, translate } from "./scripts/i18n.js";
+import config from "./config.js";
 
 const viewCache = {}
-const VIEW_CACHE_TTL_MS = 20 * 60 * 1000; // one hour
+const VIEW_CACHE_TTL_MS = 20 * 60 * 1000; // 20 minutes
 
 // global auth state
 let authState = false;
 
-var BASE_URL = "https://sytyz.tailec0aa4.ts.net";
-var AUTH_URL = `${BASE_URL}/auth`;
-var API_URL = `${BASE_URL}/api`;
-var WS_URL = "wss://pataka.tail2feabe.ts.net/ws/status";
+const BASE_URL = config.BASE_URL;
+const AUTH_URL = `${BASE_URL}/auth`;
+const API_URL = `${BASE_URL}/api`;
+const WS_URL = config.WS_URL;
 
 // mom says we have reactjs at home
 
