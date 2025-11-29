@@ -5,6 +5,7 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import dotenv from "dotenv";
+import { logger } from "./logger";
 dotenv.config();
 declare const Bun: any;
 
@@ -14,6 +15,13 @@ for (const envVar of requiredEnvVars) {
     throw new Error(`missing required environment variable: ${envVar}`);
   }
 }
+
+logger.info("initializing s3 client", { 
+  region: process.env.AWS_REGION, 
+  endpoint: process.env.AWS_ENDPOINT_URL,
+  bucket: process.env.BUCKET_NAME 
+});
+
 /**
  * aws s3 compatible client
  * endpoint and credentials come from environment variables
@@ -92,8 +100,11 @@ function json(obj: any, status = 200) {
 const app = Bun.serve({
   port: 6767,
   async fetch(req: Request) {
+    const startTime = Date.now();
     const url = new URL(req.url);
     const pathname = url.pathname;
+    
+    logger.request(req.method, pathname);
 
     // POST /queue  — upload audio file under {jobid}.{ext}
     if (req.method === "POST" && pathname === "/queue") {
@@ -102,6 +113,7 @@ const app = Bun.serve({
       const jobid = form.get("jobid") as string | null;
 
       if (!file || !jobid) {
+        logger.warn("bad request: missing file or jobid", { path: pathname });
         return json(
           { status: "error", message: "file and jobid required" },
           400
@@ -111,7 +123,10 @@ const app = Bun.serve({
       const sanitisedJobid = sanitiseForS3Key(jobid);
       const ext = sanitiseExtension(file.name);
       const key = `queue/${sanitisedJobid}.${ext}`;
+      const fileSize = file.size;
 
+      logger.s3Operation("PUT", key, { jobid: sanitisedJobid, fileSize, contentType: file.type });
+      
       await s3.send(
         new PutObjectCommand({
           Bucket: BUCKET,
@@ -121,6 +136,7 @@ const app = Bun.serve({
         })
       );
 
+      logger.response(req.method, pathname, 200, Date.now() - startTime, { key, fileSize });
       return json({ status: "ok", jobid, key });
     }
 
@@ -131,6 +147,7 @@ const app = Bun.serve({
       const jobid = form.get("jobid") as string | null;
 
       if (!file || !jobid) {
+        logger.warn("bad request: missing file or jobid", { path: pathname });
         return json(
           { status: "error", message: "file and jobid required" },
           400
@@ -139,7 +156,9 @@ const app = Bun.serve({
 
       const sanitisedJobid = sanitiseForS3Key(jobid);
       const key = `transcriptions/${sanitisedJobid}.txt`;
-      console.log("POST transcription", { jobid: sanitisedJobid, key });
+      const fileSize = file.size;
+      
+      logger.s3Operation("PUT", key, { jobid: sanitisedJobid, fileSize });
       await s3.send(
         new PutObjectCommand({
           Bucket: BUCKET,
@@ -149,6 +168,7 @@ const app = Bun.serve({
         })
       );
 
+      logger.response(req.method, pathname, 200, Date.now() - startTime, { key });
       return json({ status: "ok", jobid, key });
     }
 
@@ -156,15 +176,18 @@ const app = Bun.serve({
     const qMatch = pathname.match(/^\/queue\/(.+)$/);
     if (req.method === "GET" && qMatch) {
       const jobid = qMatch[1];
+      logger.debug("fetching queued audio", { jobid });
 
       const exts = ["wav", "mp3", "m4a", "flac", "ogg", "bin"];
 
       for (const ext of exts) {
         const Key = `queue/${jobid}.${ext}`;
         try {
+          logger.s3Operation("GET", Key);
           const res = await s3.send(
             new GetObjectCommand({ Bucket: BUCKET, Key })
           );
+          logger.response(req.method, pathname, 200, Date.now() - startTime, { key: Key });
           return new Response(res.Body as any, {
             headers: {
               "Content-Type": res.ContentType || "application/octet-stream",
@@ -174,11 +197,12 @@ const app = Bun.serve({
         } catch (err: any) {
           // NoSuchKey is expected when trying different extensions, otherwise log
           if (err.name !== "NoSuchKey") {
-            console.error(`error fetching ${Key}:`, err.message || err);
+            logger.error("s3 fetch error", { key: Key, error: err.message });
           }
         }
       }
 
+      logger.response(req.method, pathname, 404, Date.now() - startTime, { jobid });
       return json({ status: "error", message: "file not found" }, 404);
     }
 
@@ -189,6 +213,7 @@ const app = Bun.serve({
       const jobid = form.get("jobid") as string | null;
 
       if (!file || !jobid) {
+        logger.warn("bad request: missing file or jobid", { path: pathname });
         return json(
           { status: "error", message: "file and jobid required" },
           400
@@ -197,7 +222,9 @@ const app = Bun.serve({
 
       const sanitisedJobid = sanitiseForS3Key(jobid);
       const key = `transcriptions/${sanitisedJobid}.txt`;
-      console.log("PUT transcription", { jobid: sanitisedJobid, key });
+      const fileSize = file.size;
+      
+      logger.s3Operation("PUT", key, { jobid: sanitisedJobid, fileSize, update: true });
       await s3.send(
         new PutObjectCommand({
           Bucket: BUCKET,
@@ -207,6 +234,7 @@ const app = Bun.serve({
         })
       );
 
+      logger.response(req.method, pathname, 200, Date.now() - startTime, { key });
       return json({ status: "ok", jobid, key, message: "updated in place" });
     }
 
@@ -225,13 +253,14 @@ const app = Bun.serve({
         return json({ status: "error", message: "bad path" }, 400);
       }
 
-      console.log("attempt to delete: ", Key)
+      logger.s3Operation("DELETE", Key);
       try {
         await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key }));
-
+        logger.response(req.method, pathname, 200, Date.now() - startTime, { key: Key });
         return json({ status: "ok", message: "file deleted successfully" });
       } catch (err: any) {
-        console.error(`error deleting ${Key}:`, err.message || err);
+        logger.error("s3 delete error", { key: Key, error: err.message });
+        logger.response(req.method, pathname, 404, Date.now() - startTime, { key: Key });
         return json({ status: "error", message: "file not found" }, 404);
       }
     }
@@ -242,23 +271,27 @@ const app = Bun.serve({
       const jobid = tMatch[1];
       const Key = `transcriptions/${jobid}.txt`;
 
+      logger.s3Operation("GET", Key, { jobid });
       try {
         const res = await s3.send(
           new GetObjectCommand({ Bucket: BUCKET, Key })
         );
+        logger.response(req.method, pathname, 200, Date.now() - startTime, { key: Key });
         return new Response(res.Body as any, {
           headers: { "Content-Type": "text/plain" },
         });
       } catch (err: any) {
         if (err.name !== "NoSuchKey") {
-          console.error(`error fetching transcription ${Key}:`, err.message || err);
+          logger.error("s3 fetch error", { key: Key, error: err.message });
         }
+        logger.response(req.method, pathname, 404, Date.now() - startTime, { key: Key });
         return json({ status: "error", message: "file not found" }, 404);
       }
     }
 
+    logger.warn("route not found", { method: req.method, path: pathname });
     return json({ status: "error", message: "not found" }, 404);
   },
 });
 
-console.log(`API running at http://localhost:${app.port}`);
+logger.info("server started", { port: app.port });
