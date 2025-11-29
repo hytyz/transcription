@@ -46,8 +46,11 @@ async function seedSampleUsers() {
     for (const u of samples) {
         await new Promise(resolve => {
             db.get(`SELECT email FROM users WHERE email = ?`, [u.email], async (err, row) => {
-                if (err) return resolve(); // skip if we error or the user already exists
-                if (row) return resolve();
+                if (err) {
+                    console.error(`error checking if user ${u.email} exists:`, err.message);
+                    return resolve();
+                }
+                if (row) return resolve(); // user already exists
 
                 const salt = genSalt();
                 const hash = await hashPassword(u.password, salt);
@@ -58,7 +61,9 @@ async function seedSampleUsers() {
                 );
 
                 stmt.run(u.email, hash, salt, err => {
-                    if (!err) {
+                    if (err) {
+                        console.error(`error seeding user ${u.email}:`, err.message);
+                    } else {
                         console.log(`seeded sample user: ${u.email}`);
                     }
                     resolve();

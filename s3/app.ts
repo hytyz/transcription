@@ -5,9 +5,8 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import dotenv from "dotenv";
-import path from "path";
 dotenv.config();
-
+declare const Bun: any;
 
 /**
  * aws s3 compatible client
@@ -86,7 +85,7 @@ function json(obj: any, status = 200) {
  */
 const app = Bun.serve({
   port: 6767,
-  async fetch(req) {
+  async fetch(req: { url: string | { toString: () => string; }; method: string; formData: () => any; }) {
     const url = new URL(req.url);
     const pathname = url.pathname;
     
@@ -165,7 +164,12 @@ const app = Bun.serve({
               "Content-Disposition": `attachment; filename="${jobid}.${ext}"`,
             },
           });
-        } catch { }
+        } catch (err: any) {
+          // NoSuchKey is expected when trying different extensions, otherwise log
+          if (err.name !== "NoSuchKey") {
+            console.error(`error fetching ${Key}:`, err.message || err);
+          }
+        }
       }
 
       return json({ status: "error", message: "file not found" }, 404);
@@ -218,7 +222,8 @@ const app = Bun.serve({
         await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key }));
 
         return json({ status: "ok", message: "file deleted successfully" });
-      } catch {
+      } catch (err: any) {
+        console.error(`error deleting ${Key}:`, err.message || err);
         return json({ status: "error", message: "file not found" }, 404);
       }
     }
@@ -236,7 +241,10 @@ const app = Bun.serve({
         return new Response(res.Body as any, {
           headers: { "Content-Type": "text/plain" },
         });
-      } catch {
+      } catch (err: any) {
+        if (err.name !== "NoSuchKey") {
+          console.error(`error fetching transcription ${Key}:`, err.message || err);
+        }
         return json({ status: "error", message: "file not found" }, 404);
       }
     }
