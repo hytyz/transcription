@@ -77,4 +77,21 @@ auth.post("/logout", (c) => {
 
 auth.get("/me", requireAuth, (c) => c.json({ payload: { email: c.get("email") } }));
 
+auth.get("/myusage", requireAuth, async (c) => {
+  const email = c.get("email")!;
+  const row = await c.env.DB.prepare("SELECT api_usage FROM users WHERE email = ?")
+    .bind(email)
+    .first<{ api_usage: number }>();
+  if (!row) return c.json({ error: "user not found" }, 404);
+  return c.json({ email, usage: row.api_usage });
+});
+
+auth.get("/usage", requireAuth, async (c) => {
+  if (!c.env.ADMIN_EMAIL || c.get("email") !== c.env.ADMIN_EMAIL) {
+    return c.json({ error: "forbidden" }, 403);
+  }
+  const { results } = await c.env.DB.prepare("SELECT email, api_usage FROM users ORDER BY email").all();
+  return c.json({ users: results });
+});
+
 export default auth;
