@@ -5,7 +5,7 @@ import { session, csrf } from "./middleware";
 import auth from "./routes/auth";
 import { transcriptions, files } from "./routes/transcriptions";
 
-const app = new Hono<AppEnv>();
+const app = new Hono<AppEnv>({ strict: false });
 
 app.use("*", async (c, next) => {
   const start = Date.now();
