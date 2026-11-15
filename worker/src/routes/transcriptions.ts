@@ -2,7 +2,9 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { logger } from "../logger";
 import { requireAuth } from "../middleware";
+import { canAccess, transcriptKey } from "../ownership";
 
+const MAX_TRANSCRIPT_BYTES = 5 * 1024 * 1024;
 const FILENAME_RE = /^[A-Za-z0-9 _\-.]{1,255}$/;
 
 export const transcriptions = new Hono<AppEnv>();
@@ -46,4 +48,39 @@ transcriptions.delete("/delete", async (c) => {
 
   logger.info("transcription deleted", { jobid, email });
   return c.json({ ok: true, jobid });
+});
+
+export const files = new Hono<AppEnv>();
+
+files.get("/transcriptions/:jobid", async (c) => {
+  const jobid = c.req.param("jobid");
+  if (!(await canAccess(c, jobid))) return c.json({ status: "error", message: "file not found" }, 404);
+
+  const obj = await c.env.BUCKET.get(transcriptKey(jobid));
+  if (!obj) return c.json({ status: "error", message: "file not found" }, 404);
+
+  return new Response(obj.body, {
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" },
+  });
+});
+
+files.put("/transcriptions", async (c) => {
+  const form = await c.req.formData().catch(() => null);
+  const jobid = form?.get("jobid");
+  const file = form?.get("file");
+  if (typeof jobid !== "string" || !(file instanceof File)) {
+    return c.json({ status: "error", message: "file and jobid required" }, 400);
+  }
+  if (file.size > MAX_TRANSCRIPT_BYTES) return c.json({ status: "error", message: "file too large" }, 413);
+  if (!(await canAccess(c, jobid))) return c.json({ status: "error", message: "file not found" }, 404);
+
+  const existing = await c.env.BUCKET.head(transcriptKey(jobid));
+  if (!existing) return c.json({ status: "error", message: "file not found" }, 404);
+
+  await c.env.BUCKET.put(transcriptKey(jobid), await file.arrayBuffer(), {
+    httpMetadata: { contentType: "text/plain; charset=utf-8" },
+  });
+
+  logger.info("transcription updated", { jobid });
+  return c.json({ status: "ok", jobid, message: "updated in place" });
 });

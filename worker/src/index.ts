@@ -3,7 +3,7 @@ import type { AppEnv } from "./env";
 import { logger } from "./logger";
 import { session, csrf } from "./middleware";
 import auth from "./routes/auth";
-import { transcriptions } from "./routes/transcriptions";
+import { transcriptions, files } from "./routes/transcriptions";
 
 const app = new Hono<AppEnv>();
 
@@ -19,9 +19,11 @@ app.use("*", async (c, next) => {
 });
 
 app.use("/auth/*", session, csrf);
+app.use("/s3/*", session, csrf);
 
 app.route("/auth/transcriptions", transcriptions);
 app.route("/auth", auth);
+app.route("/s3", files);
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 
