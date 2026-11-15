@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import type { AppEnv } from "./env";
 import { logger } from "./logger";
+import { session, csrf } from "./middleware";
+import auth from "./routes/auth";
 
 const app = new Hono<AppEnv>();
 
@@ -14,6 +16,10 @@ app.use("*", async (c, next) => {
     durationMs: Date.now() - start,
   });
 });
+
+app.use("/auth/*", session, csrf);
+
+app.route("/auth", auth);
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 
