@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv } from "../env";
 import { logger } from "../logger";
-import { csrf } from "../middleware";
+import { csrf, rateLimit } from "../middleware";
 import { JOBID_RE, canAccess } from "../ownership";
 
 const PART_SIZE = 50 * 1024 * 1024;
@@ -47,7 +47,7 @@ const jobs = new Hono<AppEnv>();
 
 jobs.use("*", csrf);
 
-jobs.post("/upload/start", async (c) => {
+jobs.post("/upload/start", rateLimit("UPLOAD_LIMITER"), async (c) => {
   const body = await c.req
     .json<{ filename?: unknown; size?: unknown; contentType?: unknown }>()
     .catch(() => ({}) as Record<string, unknown>);

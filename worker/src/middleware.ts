@@ -35,7 +35,7 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   await next();
 });
 
-export function rateLimit(binding: "AUTH_LIMITER") {
+export function rateLimit(binding: "AUTH_LIMITER" | "UPLOAD_LIMITER") {
   return createMiddleware<AppEnv>(async (c, next) => {
     const key = c.req.header("cf-connecting-ip") ?? "local";
     const { success } = await c.env[binding].limit({ key });
