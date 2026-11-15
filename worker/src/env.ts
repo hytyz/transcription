@@ -5,6 +5,7 @@ export interface Env {
   JWT_SECRET: string;
   ADMIN_EMAIL: string;
   JWT_EXP_SECONDS: string;
+  MAX_UPLOAD_MB: string;
 }
 
 export type Vars = { email: string | null };
