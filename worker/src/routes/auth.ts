@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { logger } from "../logger";
 import { genSalt, hashPassword, verifyPassword } from "../password";
-import { requireAuth, startSession, endSession } from "../middleware";
+import { rateLimit, requireAuth, startSession, endSession } from "../middleware";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -21,7 +21,7 @@ function readCredentials(body: Credentials): { email: string; password: string }
 
 const auth = new Hono<AppEnv>();
 
-auth.post("/create", async (c) => {
+auth.post("/create", rateLimit("AUTH_LIMITER"), async (c) => {
   const creds = readCredentials(await c.req.json<Credentials>().catch(() => ({})));
   if ("error" in creds) {
     logger.warn("registration failed", { reason: creds.error });
@@ -46,7 +46,7 @@ auth.post("/create", async (c) => {
   return c.json({ ok: true });
 });
 
-auth.post("/login", async (c) => {
+auth.post("/login", rateLimit("AUTH_LIMITER"), async (c) => {
   if (!c.req.header("content-type")?.includes("application/json")) {
     return c.json({ error: "content-type must be application/json" }, 415);
   }
