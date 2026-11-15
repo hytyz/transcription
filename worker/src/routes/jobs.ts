@@ -3,7 +3,7 @@ import type { Context } from "hono";
 import type { AppEnv } from "../env";
 import { logger } from "../logger";
 import { csrf } from "../middleware";
-import { JOBID_RE } from "../ownership";
+import { JOBID_RE, canAccess } from "../ownership";
 
 const PART_SIZE = 50 * 1024 * 1024;
 const MAX_PARTS = 10_000;
@@ -112,6 +112,25 @@ jobs.post("/upload/:jobid/complete", async (c) => {
 
   logger.info("job queued", { jobid: job.jobid, email: job.email });
   return c.json({ jobid: job.jobid, status: "queued" });
+});
+
+jobs.get("/jobs/:jobid", async (c) => {
+  const jobid = c.req.param("jobid");
+  if (!(await canAccess(c, jobid))) return c.json({ error: "job not found" }, 404);
+
+  const job = await c.env.DB.prepare("SELECT jobid, status, error, created_at FROM jobs WHERE jobid = ?")
+    .bind(jobid)
+    .first<Pick<JobRow, "jobid" | "status" | "error" | "created_at">>();
+  if (!job) return c.json({ jobid, status: "completed" });
+
+  let ahead = 0;
+  if (job.status === "queued") {
+    const row = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM jobs WHERE status = 'queued' AND created_at < ?")
+      .bind(job.created_at)
+      .first<{ n: number }>();
+    ahead = row?.n ?? 0;
+  }
+  return c.json({ jobid, status: job.status, error: job.error, ahead });
 });
 
 export default jobs;

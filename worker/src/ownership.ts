@@ -8,10 +8,15 @@ export const transcriptKey = (jobid: string) => `transcriptions/${jobid}.txt`;
 type Owner = { found: false } | { found: true; email: string | null };
 
 export async function findOwner(c: Context<AppEnv>, jobid: string): Promise<Owner> {
-  const row = await c.env.DB.prepare("SELECT email FROM transcriptions WHERE jobid = ?")
+  const job = await c.env.DB.prepare("SELECT email FROM jobs WHERE jobid = ?")
+    .bind(jobid)
+    .first<{ email: string | null }>();
+  if (job) return { found: true, email: job.email };
+
+  const legacy = await c.env.DB.prepare("SELECT email FROM transcriptions WHERE jobid = ?")
     .bind(jobid)
     .first<{ email: string }>();
-  if (row) return { found: true, email: row.email };
+  if (legacy) return { found: true, email: legacy.email };
 
   return { found: false };
 }
