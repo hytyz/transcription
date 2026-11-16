@@ -1,6 +1,7 @@
 export interface Env {
   DB: D1Database;
   BUCKET: R2Bucket;
+  ASSETS: Fetcher;
   AUTH_LIMITER: RateLimit;
   UPLOAD_LIMITER: RateLimit;
   JWT_SECRET: string;
