@@ -29,3 +29,8 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at);
+
+CREATE TABLE IF NOT EXISTS route_usage (
+    route TEXT PRIMARY KEY,
+    count INTEGER NOT NULL DEFAULT 0
+);

@@ -6,6 +6,7 @@ import auth from "./routes/auth";
 import { transcriptions, files } from "./routes/transcriptions";
 import jobs from "./routes/jobs";
 import gpu from "./routes/gpu";
+import usage, { trackUsage } from "./routes/usage";
 
 const app = new Hono<AppEnv>({ strict: false });
 
@@ -20,6 +21,8 @@ app.use("*", async (c, next) => {
   });
 });
 
+app.use("*", trackUsage);
+
 app.use("/auth/*", session, csrf);
 app.use("/s3/*", session, csrf);
 
@@ -32,6 +35,8 @@ app.get("/api/health", (c) => c.json({ ok: true }));
 app.use("/api/*", session);
 app.route("/api/worker", gpu);
 app.route("/api", jobs);
+
+app.route("/__usage", usage);
 
 app.notFound((c) => c.json({ error: "not found" }, 404));
 
