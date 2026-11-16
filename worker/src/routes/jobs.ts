@@ -45,9 +45,7 @@ async function loadUploadingJob(c: Context<AppEnv>, jobid: string) {
 
 const jobs = new Hono<AppEnv>();
 
-jobs.use("*", csrf);
-
-jobs.post("/upload/start", rateLimit("UPLOAD_LIMITER"), async (c) => {
+jobs.post("/upload/start", csrf, rateLimit("UPLOAD_LIMITER"), async (c) => {
   const body = await c.req
     .json<{ filename?: unknown; size?: unknown; contentType?: unknown }>()
     .catch(() => ({}) as Record<string, unknown>);
@@ -76,7 +74,7 @@ jobs.post("/upload/start", rateLimit("UPLOAD_LIMITER"), async (c) => {
   return c.json({ jobid, partSize: PART_SIZE });
 });
 
-jobs.put("/upload/:jobid/:part", async (c) => {
+jobs.put("/upload/:jobid/:part", csrf, async (c) => {
   const partNumber = parseInt(c.req.param("part"), 10);
   if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > MAX_PARTS) {
     return c.json({ error: "invalid part number" }, 400);
@@ -90,7 +88,7 @@ jobs.put("/upload/:jobid/:part", async (c) => {
   return c.json({ partNumber: part.partNumber, etag: part.etag });
 });
 
-jobs.post("/upload/:jobid/complete", async (c) => {
+jobs.post("/upload/:jobid/complete", csrf, async (c) => {
   const job = await loadUploadingJob(c, c.req.param("jobid"));
   if (!job) return c.json({ error: "upload not found" }, 404);
 
