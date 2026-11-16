@@ -13,16 +13,17 @@ const now = () => Math.floor(Date.now() / 1000);
 
 async function activeJob(c: Context<AppEnv>, jobid: string) {
   if (!JOBID_RE.test(jobid)) return null;
-  return c.env.DB.prepare(`SELECT jobid FROM jobs WHERE jobid = ? AND status IN (${PROCESSING_SQL})`)
+  return c.env.DB.prepare(`SELECT jobid, audio_key FROM jobs WHERE jobid = ? AND status IN (${PROCESSING_SQL})`)
     .bind(jobid)
     .first<{ jobid: string; audio_key: string }>();
 }
 
-async function failJob(c: Context<AppEnv>, jobid: string, error: string) {
+async function failJob(c: Context<AppEnv>, jobid: string, audioKey: string, error: string) {
   const message = error.slice(0, MAX_ERROR_LENGTH);
   await c.env.BUCKET.put(transcriptKey(jobid), `transcription failed for job '${jobid}': ${message}`, {
     httpMetadata: { contentType: "text/plain; charset=utf-8" },
   });
+  await c.env.BUCKET.delete(audioKey);
   await c.env.DB.prepare("UPDATE jobs SET status = 'error', error = ?, updated_at = ? WHERE jobid = ?")
     .bind(message, now(), jobid)
     .run();
@@ -41,10 +42,10 @@ gpu.post("/claim", async (c) => {
     `SELECT jobid, audio_key FROM jobs WHERE status IN (${PROCESSING_SQL}) AND updated_at < ? AND attempts >= ?`,
   )
     .bind(staleBefore, maxAttempts)
-    .all<{ jobid: string }>();
+    .all<{ jobid: string; audio_key: string }>();
   for (const job of abandoned) {
     logger.warn("giving up on job", { jobid: job.jobid, attempts: maxAttempts });
-    await failJob(c, job.jobid, `gave up after ${maxAttempts} attempts`);
+    await failJob(c, job.jobid, job.audio_key, `gave up after ${maxAttempts} attempts`);
   }
 
   const job = await c.env.DB.prepare(
@@ -110,7 +111,7 @@ gpu.post("/jobs/:jobid/fail", async (c) => {
   if (!job) return c.json({ error: "job not found" }, 404);
 
   const { error } = await c.req.json<{ error?: string }>().catch(() => ({}) as { error?: undefined });
-  await failJob(c, jobid, error || "unknown error");
+  await failJob(c, jobid, job.audio_key, error || "unknown error");
 
   logger.warn("job failed", { jobid, error });
   return c.json({ ok: true });
