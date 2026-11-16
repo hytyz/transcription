@@ -20,7 +20,7 @@ export const trackUsage = createMiddleware<AppEnv>(async (c, next) => {
 const usage = new Hono<AppEnv>();
 
 usage.get("/", session, requireAuth, async (c) => {
-  if (!c.env.ADMIN_EMAIL || c.get("email") !== c.env.ADMIN_EMAIL) {
+  if (!c.env.ADMIN_EMAIL || c.get("email") !== c.env.ADMIN_EMAIL.toLowerCase()) {
     return c.json({ error: "forbidden" }, 403);
   }
   const { results } = await c.env.DB.prepare("SELECT route, count FROM route_usage ORDER BY count DESC").all<{

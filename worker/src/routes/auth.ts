@@ -16,7 +16,7 @@ function readCredentials(body: Credentials): { email: string; password: string }
   if (email.length > 254 || !EMAIL_RE.test(email)) return { error: "invalid email format" };
   if (password.length < 8) return { error: "password must be at least 8 characters" };
   if (password.length > 1024) return { error: "password is too long" };
-  return { email, password };
+  return { email: email.toLowerCase(), password };
 }
 
 const auth = new Hono<AppEnv>();
@@ -54,7 +54,7 @@ auth.post("/login", rateLimit("AUTH_LIMITER"), async (c) => {
   if (typeof body.email !== "string" || typeof body.password !== "string") {
     return c.json({ error: "email and password required" }, 400);
   }
-  const email = body.email.trim();
+  const email = body.email.trim().toLowerCase();
 
   const row = await c.env.DB.prepare("SELECT password_hash, salt FROM users WHERE email = ?")
     .bind(email)
@@ -87,7 +87,7 @@ auth.get("/myusage", requireAuth, async (c) => {
 });
 
 auth.get("/usage", requireAuth, async (c) => {
-  if (!c.env.ADMIN_EMAIL || c.get("email") !== c.env.ADMIN_EMAIL) {
+  if (!c.env.ADMIN_EMAIL || c.get("email") !== c.env.ADMIN_EMAIL.toLowerCase()) {
     return c.json({ error: "forbidden" }, 403);
   }
   const { results } = await c.env.DB.prepare("SELECT email, api_usage FROM users ORDER BY email").all();
