@@ -5,6 +5,7 @@ import { session, csrf } from "./middleware";
 import auth from "./routes/auth";
 import { transcriptions, files } from "./routes/transcriptions";
 import jobs from "./routes/jobs";
+import gpu from "./routes/gpu";
 
 const app = new Hono<AppEnv>({ strict: false });
 
@@ -29,6 +30,7 @@ app.route("/s3", files);
 app.get("/api/health", (c) => c.json({ ok: true }));
 
 app.use("/api/*", session);
+app.route("/api/worker", gpu);
 app.route("/api", jobs);
 
 app.notFound((c) => c.json({ error: "not found" }, 404));

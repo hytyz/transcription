@@ -4,6 +4,7 @@ export interface Env {
   AUTH_LIMITER: RateLimit;
   UPLOAD_LIMITER: RateLimit;
   JWT_SECRET: string;
+  WORKER_TOKEN: string;
   ADMIN_EMAIL: string;
   JWT_EXP_SECONDS: string;
   MAX_UPLOAD_MB: string;

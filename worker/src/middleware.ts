@@ -47,6 +47,18 @@ export function rateLimit(binding: "AUTH_LIMITER" | "UPLOAD_LIMITER") {
   });
 }
 
+export const requireWorkerToken = createMiddleware<AppEnv>(async (c, next) => {
+  const header = c.req.header("authorization") ?? "";
+  const expected = `Bearer ${c.env.WORKER_TOKEN}`;
+  const a = new TextEncoder().encode(header);
+  const b = new TextEncoder().encode(expected);
+  if (!c.env.WORKER_TOKEN || a.byteLength !== b.byteLength || !crypto.subtle.timingSafeEqual(a, b)) {
+    logger.warn("gpu worker auth failed", { path: c.req.path });
+    return c.json({ error: "unauthorized" }, 401);
+  }
+  await next();
+});
+
 export async function startSession(c: Context<AppEnv>, email: string) {
   const expSeconds = parseInt(c.env.JWT_EXP_SECONDS, 10);
   const now = Math.floor(Date.now() / 1000);
