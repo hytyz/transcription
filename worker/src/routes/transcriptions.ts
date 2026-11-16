@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { logger } from "../logger";
 import { requireAuth } from "../middleware";
-import { canAccess, transcriptKey } from "../ownership";
+import { JOBID_RE, canAccess, transcriptKey } from "../ownership";
 
 const MAX_TRANSCRIPT_BYTES = 5 * 1024 * 1024;
 const FILENAME_RE = /^[A-Za-z0-9 _\-.]{1,255}$/;
@@ -39,12 +39,22 @@ transcriptions.put("/rename", async (c) => {
 transcriptions.delete("/delete", async (c) => {
   const email = c.get("email")!;
   const { jobid } = await c.req.json<{ jobid?: string }>().catch(() => ({}) as Record<string, undefined>);
-  if (!jobid) return c.json({ error: "jobid required" }, 400);
+  if (!jobid || !JOBID_RE.test(jobid)) return c.json({ error: "jobid required" }, 400);
 
-  const result = await c.env.DB.prepare("DELETE FROM transcriptions WHERE jobid = ? AND email = ?")
+  const row = await c.env.DB.prepare("SELECT jobid FROM transcriptions WHERE jobid = ? AND email = ?")
     .bind(jobid, email)
-    .run();
-  if (result.meta.changes === 0) return c.json({ error: "transcription not found" }, 404);
+    .first();
+  if (!row) return c.json({ error: "transcription not found" }, 404);
+
+  const job = await c.env.DB.prepare("SELECT audio_key FROM jobs WHERE jobid = ?")
+    .bind(jobid)
+    .first<{ audio_key: string }>();
+
+  await c.env.BUCKET.delete([transcriptKey(jobid), ...(job ? [job.audio_key] : [])]);
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM transcriptions WHERE jobid = ? AND email = ?").bind(jobid, email),
+    c.env.DB.prepare("DELETE FROM jobs WHERE jobid = ? AND email = ?").bind(jobid, email),
+  ]);
 
   logger.info("transcription deleted", { jobid, email });
   return c.json({ ok: true, jobid });
