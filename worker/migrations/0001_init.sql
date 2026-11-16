@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     upload_id TEXT,
     status TEXT NOT NULL,
     error TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );

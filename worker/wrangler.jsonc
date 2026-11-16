@@ -23,7 +23,9 @@
   ],
   "vars": {
     "JWT_EXP_SECONDS": "604800",
-    "MAX_UPLOAD_MB": "2048"
+    "MAX_UPLOAD_MB": "2048",
+    "STALE_JOB_SECONDS": "600",
+    "MAX_JOB_ATTEMPTS": "3"
   },
   "observability": { "enabled": true }
 }

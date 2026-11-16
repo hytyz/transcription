@@ -8,6 +8,8 @@ export interface Env {
   ADMIN_EMAIL: string;
   JWT_EXP_SECONDS: string;
   MAX_UPLOAD_MB: string;
+  STALE_JOB_SECONDS: string;
+  MAX_JOB_ATTEMPTS: string;
 }
 
 export type Vars = { email: string | null };

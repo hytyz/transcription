@@ -33,13 +33,31 @@ const gpu = new Hono<AppEnv>();
 gpu.use("*", requireWorkerToken);
 
 gpu.post("/claim", async (c) => {
-  const job = await c.env.DB.prepare(
-    `UPDATE jobs SET status = 'received', updated_at = ?
-     WHERE jobid = (SELECT jobid FROM jobs WHERE status = 'queued' ORDER BY created_at LIMIT 1)
-     RETURNING jobid, filename`,
+  const ts = now();
+  const staleBefore = ts - parseInt(c.env.STALE_JOB_SECONDS, 10);
+  const maxAttempts = parseInt(c.env.MAX_JOB_ATTEMPTS, 10);
+
+  const { results: abandoned } = await c.env.DB.prepare(
+    `SELECT jobid, audio_key FROM jobs WHERE status IN (${PROCESSING_SQL}) AND updated_at < ? AND attempts >= ?`,
   )
-    .bind(now())
-    .first<{ jobid: string; filename: string }>();
+    .bind(staleBefore, maxAttempts)
+    .all<{ jobid: string }>();
+  for (const job of abandoned) {
+    logger.warn("giving up on job", { jobid: job.jobid, attempts: maxAttempts });
+    await failJob(c, job.jobid, `gave up after ${maxAttempts} attempts`);
+  }
+
+  const job = await c.env.DB.prepare(
+    `UPDATE jobs SET status = 'received', attempts = attempts + 1, error = NULL, updated_at = ?
+     WHERE jobid = (
+       SELECT jobid FROM jobs
+       WHERE status = 'queued' OR (status IN (${PROCESSING_SQL}) AND updated_at < ?)
+       ORDER BY created_at LIMIT 1
+     )
+     RETURNING jobid, filename, attempts`,
+  )
+    .bind(ts, staleBefore)
+    .first<{ jobid: string; filename: string; attempts: number }>();
 
   if (!job) return c.body(null, 204);
   logger.info("job claimed", job);
