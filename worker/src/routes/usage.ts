@@ -8,7 +8,7 @@ import { session, requireAuth } from "../middleware";
 export const trackUsage = createMiddleware<AppEnv>(async (c, next) => {
   await next();
   const route = routePath(c, -1);
-  if (!route || route === "*" || route.endsWith("/*")) return;
+  if (!route || route.startsWith("/api/worker") || route === "*" || route.endsWith("/*")) return;
   c.executionCtx.waitUntil(
     c.env.DB.prepare("INSERT INTO route_usage(route, count) VALUES(?, 1) ON CONFLICT(route) DO UPDATE SET count = count + 1")
       .bind(`${c.req.method} ${route}`)
