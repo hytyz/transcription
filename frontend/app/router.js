@@ -16,7 +16,7 @@ let authState = false;
 const BASE_URL = config.BASE_URL;
 const AUTH_URL = `${BASE_URL}/auth`;
 const API_URL = `${BASE_URL}/api`;
-const WS_URL = config.WS_URL;
+const POLL_INTERVAL_MS = config.POLL_INTERVAL_MS;
 
 // mom says we have reactjs at home
 
@@ -124,4 +124,4 @@ router();
  */
 function setAuthState(state) { authState = state }
 
-export { setAuthState, BASE_URL, AUTH_URL, API_URL, WS_URL }
+export { setAuthState, BASE_URL, AUTH_URL, API_URL, POLL_INTERVAL_MS }

@@ -1,4 +1,4 @@
-import { navigateTo, API_URL, WS_URL } from "../router.js";
+import { navigateTo, API_URL, POLL_INTERVAL_MS } from "../router.js";
 import { translate } from "./i18n.js";
 import { apiFetch } from "./api.js";
 

@@ -3,11 +3,8 @@
  */
 
 const config = {
-    /** base url for gateway */
-    BASE_URL: "https://sytyz.tailec0aa4.ts.net",
-    
-    /** websocket url for transcription status updates */
-    WS_URL: "wss://pataka.tail2feabe.ts.net/ws/status",
+    BASE_URL: "",
+    POLL_INTERVAL_MS: 3000,
 };
 
 Object.freeze(config);
