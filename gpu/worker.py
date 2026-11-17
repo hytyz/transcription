@@ -26,6 +26,7 @@ handler.setFormatter(JSONFormatter())
 logger.handlers = [handler]
 
 def log_with_extra(level, message, **kwargs):
+    if not logger.isEnabledFor(level): return
     record = logging.LogRecord(name="gpu", level=level, pathname="", lineno=0, msg=message, args=(), exc_info=None)
     record.extra_data = kwargs
     logger.handle(record)
