@@ -32,7 +32,7 @@ def get_whisper_model() -> FasterWhisperPipeline:
     try: model: FasterWhisperPipeline = whisperx.load_model(model_name, _DEVICE, compute_type="float16", asr_options=asr_options)
     except ValueError as e:
         message = str(e).lower()
-        if "float16" in message: model = whisperx.load_model(model_name, _DEVICE, compute_type="float32")
+        if "float16" in message: model = whisperx.load_model(model_name, _DEVICE, compute_type="float32", asr_options=asr_options)
         else: raise Exception(f"failed to load model '{model_name}': {e}") from e
     except TranscriptionError as e: raise TranscriptionError(f"failed to load model '{model_name}': {e}") from e
     except Exception as e: raise Exception(f"model '{model_name}' failed to load: {e}") from e
