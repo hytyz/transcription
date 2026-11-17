@@ -103,6 +103,9 @@ def process(job: dict):
         try: _api("POST", f"/jobs/{jobid}/fail", json={"error": str(e)})
         except requests.RequestException as report_error:
             log_with_extra(logging.ERROR, "could not report failure", jobid=jobid, error=str(report_error))
+    finally:
+        try: os.remove(path)
+        except OSError: pass
 
 def main():
     log_with_extra(logging.INFO, "loading models")
