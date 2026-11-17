@@ -1,4 +1,4 @@
-import json; import logging; import os; import tempfile; import time
+import json; import logging; import os; import tempfile; import threading; import time
 from datetime import datetime; from enum import Enum; from pathlib import Path
 
 import requests
@@ -33,6 +33,7 @@ def log_with_extra(level, message, **kwargs):
 API_URL = os.environ["API_URL"].rstrip("/")
 WORKER_TOKEN = os.environ["WORKER_TOKEN"]
 POLL_INTERVAL = float(os.environ.get("POLL_INTERVAL", "5"))
+HEARTBEAT_INTERVAL = float(os.environ.get("HEARTBEAT_INTERVAL", "60"))
 MAX_BACKOFF = 60.0
 
 session = requests.Session()
@@ -47,14 +48,30 @@ class StatusReporter:
     def __init__(self, jobid):
         self.jobid = jobid
         self.status = "received"
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._heartbeat, daemon=True)
+
+    def __enter__(self):
+        self._thread.start()
+        return self
+
+    def __exit__(self, *_):
+        self._stop.set()
+        self._thread.join(timeout=5)
 
     def set(self, status):
-        self.status = status.value if isinstance(status, Enum) else str(status)
-        self._send()
+        with self._lock:
+            self.status = status.value if isinstance(status, Enum) else str(status)
+            self._send()
 
     def _send(self):
         try: _api("POST", f"/jobs/{self.jobid}/status", json={"status": self.status})
         except requests.RequestException as e: log_with_extra(logging.WARNING, "status update failed", jobid=self.jobid, status=self.status, error=str(e))
+
+    def _heartbeat(self):
+        while not self._stop.wait(HEARTBEAT_INTERVAL):
+            with self._lock: self._send()
 
 def _download_audio(jobid, path):
     size = 0
@@ -73,10 +90,10 @@ def process(job: dict):
     log_with_extra(logging.INFO, "processing job", jobid=jobid, attempt=job.get("attempts"))
 
     try:
-        reporter = StatusReporter(jobid)
-        size = _download_audio(jobid, path)
-        log_with_extra(logging.DEBUG, "audio downloaded", jobid=jobid, size=size)
-        transcript: bytes = generate_diarized_transcript(path, on_status=reporter.set)
+        with StatusReporter(jobid) as reporter:
+            size = _download_audio(jobid, path)
+            log_with_extra(logging.DEBUG, "audio downloaded", jobid=jobid, size=size)
+            transcript: bytes = generate_diarized_transcript(path, on_status=reporter.set)
         _api("POST", f"/jobs/{jobid}/complete", timeout=120, data=transcript, headers={"Content-Type": "text/plain; charset=utf-8"})
         log_with_extra(logging.INFO, "job completed", jobid=jobid, transcript_size=len(transcript), seconds=round(time.monotonic() - started, 1))
     except requests.RequestException as e:
