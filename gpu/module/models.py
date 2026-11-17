@@ -8,6 +8,8 @@ from .asr_options import asr_options
 # determines the n of speakers and how often segments are merged or split across speakers
 DIARIZATION_CLUSTER_THRESHOLD: Final[float] = 0.5 # try lowering to reduce overmerging
 _DEVICE: Final[str] = "cuda" # required for diarization on gpu
+_WHISPER_MODEL_NAME: Final[str] = os.environ.get("WHISPER_MODEL", "large")
+_DIARIZATION_MODEL_NAME: Final[str] = os.environ.get("DIARIZATION_MODEL", "pyannote/speaker-diarization@2.1")
 _ALIGN_MODEL: torch.nn.Module | None = None
 _ALIGN_METADATA: AlignMetadata | None = None
 _DIARIZATION_PIPELINE: DiarizationPipeline | None = None
@@ -25,7 +27,7 @@ def get_whisper_model() -> FasterWhisperPipeline:
     """loads and caches the whisperx large model"""
     global _WHISPER_MODEL
     if _WHISPER_MODEL is not None: return _WHISPER_MODEL
-    model_name: str = "large"
+    model_name: str = _WHISPER_MODEL_NAME
 
     try: model: FasterWhisperPipeline = whisperx.load_model(model_name, _DEVICE, compute_type="float16", asr_options=asr_options)
     except ValueError as e:
@@ -52,7 +54,7 @@ def get_diarization_pipeline() -> DiarizationPipeline:
     global _DIARIZATION_PIPELINE
     if _DIARIZATION_PIPELINE is None:
         # https://github.com/m-bain/whisperX/issues/499 -- do NOT switch from the 2.1 model
-        _DIARIZATION_PIPELINE = DiarizationPipeline(model_name="pyannote/speaker-diarization@2.1", use_auth_token=_HF_TOKEN, device=_DEVICE)
+        _DIARIZATION_PIPELINE = DiarizationPipeline(model_name=_DIARIZATION_MODEL_NAME, use_auth_token=_HF_TOKEN, device=_DEVICE)
         try:
             _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": DIARIZATION_CLUSTER_THRESHOLD}})
         except Exception as e:
