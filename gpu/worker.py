@@ -76,8 +76,7 @@ def process(job: dict):
         reporter = StatusReporter(jobid)
         size = _download_audio(jobid, path)
         log_with_extra(logging.DEBUG, "audio downloaded", jobid=jobid, size=size)
-        with open(path, "rb") as f: audio_bytes = f.read()
-        transcript: bytes = generate_diarized_transcript(audio_bytes, on_status=reporter.set)
+        transcript: bytes = generate_diarized_transcript(path, on_status=reporter.set)
         _api("POST", f"/jobs/{jobid}/complete", timeout=120, data=transcript, headers={"Content-Type": "text/plain; charset=utf-8"})
         log_with_extra(logging.INFO, "job completed", jobid=jobid, transcript_size=len(transcript), seconds=round(time.monotonic() - started, 1))
     except requests.RequestException as e:

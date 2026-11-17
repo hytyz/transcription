@@ -1,7 +1,6 @@
-import ffmpeg; import torch; import whisperx
+import torch; import whisperx
 from numpy import ndarray, frombuffer, clip, dtype
 from shutil import which
-import tempfile
 import subprocess
 from typing import Final
 from pandas import DataFrame
@@ -14,41 +13,30 @@ from .models import get_align_model, get_diarization_pipeline, get_device, get_w
 DEVICE: Final[str] = get_device()
 _FFMPEG_AVAILABLE: Final[bool] = which("ffmpeg") is not None # caching ffmpeg presence so that it's not called repeatedly
 
-def load_audio(data:bytes) -> ndarray:
+def load_audio(path: str) -> ndarray:
     """
-    creates a temporary file from the input, decodes it into a mono 16 khz float32 waveform via ffmpeg
+    decodes an audio file on disk into a mono 16 khz float32 waveform via ffmpeg
     returns a 1d numpy array with samples normalised to [-1.0, 1.0] per whisperx's wants
     """
     if not _FFMPEG_AVAILABLE: raise TranscriptionError("ffmpeg not found. https://ffmpeg.org/download.html")
 
-    # .m4a is in the mp4 family. to parse mp4 containers, parser would need random access to 
-    # get the moov atom (the index and timing info), which is placed at the end of mp4 containers;
-    # when the input is a nonseekable pipe (stdin), ffmpeg can only consume bytes in order, 
-    # so in m4a files it doesn't see the moov atom and treats the input as a partial (=unusable) file. 
-    # a (temporary) file is seekable and is the only viable, afaik, solution to .m4a files not working   
-    with tempfile.NamedTemporaryFile(suffix=".audio") as temporary_file:
-        # this is saved in /tmp
-        temporary_file.write(data)
-        # ensure the new file is out of the buffer so ffmpeg doesn't think the file is partial
-        temporary_file.flush() 
+    ffmpeg_cmd = [
+        "ffmpeg",
+        "-nostdin", # disables standard input
+        "-loglevel", "error", # only spew out errors
+        "-i", path,
+        "-ac", "1", # not sure whether setting it to mono actually improves anything
+        "-ar", "16000", # sample rate 16 kHz
+        "-f", "f32le", # output format pcm 32 bit float little-endian
+        "pipe:1", 
+    ]
 
-        ffmpeg_cmd = [
-            "ffmpeg",
-            "-nostdin", # disables standard input
-            "-loglevel", "error", # only spew out errors
-            "-i", temporary_file.name,
-            "-ac", "1", # not sure whether setting it to mono actually improves anything
-            "-ar", "16000", # sample rate 16 kHz
-            "-f", "f32le", # output format pcm 32 bit float little-endian
-            "pipe:1", 
-        ]
+    process = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if process.returncode != 0: raise TranscriptionError(process.stderr.decode(errors="ignore"))
 
-        process = subprocess.run(ffmpeg_cmd, input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if process.returncode != 0: raise TranscriptionError(process.stderr.decode(errors="ignore"))
-        
-        if not process.stdout: raise RuntimeError("decoded audio is empty")
-        audio = frombuffer(process.stdout, dtype=dtype("<f4"))
-        return clip(audio, -1.0, 1.0)
+    if not process.stdout: raise RuntimeError("decoded audio is empty")
+    audio = frombuffer(process.stdout, dtype=dtype("<f4"))
+    return clip(audio, -1.0, 1.0)
 
 def transcribe_audio(audio: ndarray) -> TranscriptionResult:
     """run transcription on audio and return raw segments via cached whisperx model"""

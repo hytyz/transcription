@@ -19,11 +19,11 @@ def warm_up() -> None:
     get_align_model()
     get_diarization_pipeline()
 
-def generate_diarized_transcript(audio_bytes: bytes, on_status: Callable[[str], None] | None = None) -> bytes:
-    """runs transcription, alignment, diarization, and formatting for a single audio blob"""
+def generate_diarized_transcript(audio_path: str, on_status: Callable[[str], None] | None = None) -> bytes:
+    """runs transcription, alignment, diarization, and formatting for a single audio file"""
     try:
         if on_status: on_status(CurrentState.RECEIVED)
-        audio: ndarray = load_audio(audio_bytes)
+        audio: ndarray = load_audio(audio_path)
         if on_status: on_status(CurrentState.TRANSCRIBING)
         transcription_result: TranscriptionResult = transcribe_audio(audio)
         if on_status: on_status(CurrentState.ALIGNING)
