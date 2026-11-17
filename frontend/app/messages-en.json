@@ -60,6 +60,17 @@
   "transcribe.error.noJobId": "no job id returned.",
   "transcribe.error.failedPrefix": "transcription failed:",
 
+  "transcribe.status.uploading": "uploading",
+  "transcribe.status.queued": "queued",
+  "transcribe.status.ahead": "ahead of you",
+  "transcribe.status.received": "received",
+  "transcribe.status.transcribing": "transcribing",
+  "transcribe.status.aligning": "aligning",
+  "transcribe.status.diarizing": "figuring out who said what",
+  "transcribe.status.postprocessing": "postprocessing",
+  "transcribe.status.completed": "done",
+  "transcribe.status.error": "failed",
+
   "usage.title": "api usage",
   "usage.summary.total": "total api usage:",
   "usage.summary.user": "user:",

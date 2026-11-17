@@ -83,6 +83,13 @@ function setupTranscribe() {
         }
     }
 
+    function describeStatus(job) {
+        if (job.status === "queued" && job.ahead > 0) {
+            return `${translate("transcribe.status.queued", "queued")} (${job.ahead} ${translate("transcribe.status.ahead")})`;
+        }
+        return translate(`transcribe.status.${job.status}`, job.status) + "...";
+    }
+
     async function pollStatus(jobid) {
         let job;
         try {
@@ -95,7 +102,7 @@ function setupTranscribe() {
             return;
         }
 
-        setTranscriptionStatus(job.status + "...");
+        setTranscriptionStatus(describeStatus(job));
 
         if (job.status === "completed") {
             sessionStorage.setItem("currentJobId", jobid);
