@@ -1,5 +1,5 @@
 import json; import logging; import os; import tempfile; import time
-from datetime import datetime; from pathlib import Path
+from datetime import datetime; from enum import Enum; from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
@@ -49,7 +49,7 @@ class StatusReporter:
         self.status = "received"
 
     def set(self, status):
-        self.status = str(status)
+        self.status = status.value if isinstance(status, Enum) else str(status)
         self._send()
 
     def _send(self):

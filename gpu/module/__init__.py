@@ -4,9 +4,9 @@ from .dataclasses import TranscriptionError, TranscriptionResult, AlignmentResul
 from .models import get_whisper_model, get_align_model, get_diarization_pipeline
 from .pipeline import load_audio, transcribe_audio, align_transcript_segments, run_diarization_pipeline, postprocess_segments
 from typing import Callable
-from enum import Enum
+from enum import StrEnum
 
-class CurrentState(str, Enum):
+class CurrentState(StrEnum):
     """string enum for transcription pipeline states"""
     RECEIVED = "received"
     TRANSCRIBING = "transcribing"
