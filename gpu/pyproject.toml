@@ -1,30 +1,13 @@
-[tool.uv]
-package = true
-
 [project]
-name = "transcription"
-version = "0.1.0"
-description = "diarized transcription pipeline with whisperx and pyannote"
-requires-python = ">=3.11"
+name = "transcription-gpu"
+version = "0.2.0"
+description = "gpu worker for diarized transcription with whisperx and pyannote"
+requires-python = ">=3.11,<3.13"
 dependencies = [
-  "fastapi>=0.115.0",
-  "uvicorn[standard]>=0.30.0",
+  "whisperx==3.7.4",
   "requests>=2.32.0",
-  "PyJWT>=2.9.0",
-  "numpy>=1.26.0",
-  "pandas>=2.2.0",
-  "whisperx>=3.1.0",
-  "pyannote.audio>=3.1.0",
-  "soundfile>=0.12.0"
+  "python-dotenv>=1.0.0",
 ]
-[project.optional-dependencies]
-torch-cu121 = ["torch==2.4.0+cu121; platform_system=='Linux'", "torchaudio==2.4.0+cu121; platform_system=='Linux'", "torchvision==0.19.0+cu121; platform_system=='Linux'"]
-torch-cpu = ["torch>=2.4.0", "torchaudio>=2.4.0", "torchvision>=0.19.0"]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["transcription*"]
-
-[build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+[tool.uv]
+package = false
