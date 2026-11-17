@@ -1,9 +1,9 @@
 import { navigateTo, API_URL, POLL_INTERVAL_MS } from "../router.js";
 import { translate } from "./i18n.js";
-import { apiFetch } from "./api.js";
+import { apiFetch, apiPost } from "./api.js";
 
 /**
- * wires the upload flow; handles file selection; starts a transcription job; tracks progress via websocket
+ * wires the upload flow; handles file selection; starts a transcription job; tracks progress by polling
  * updates the page to show progress and navigates to the transcription view on completion
  */
 function setupTranscribe() {
@@ -24,21 +24,41 @@ function setupTranscribe() {
         if (file) { startTranscription(file); }
     });
 
-    /**
-     * starts a new transcription by uploading the file as multipart form data
-     * generates a job id on the client; updates the ui to show progress; starts ws tracking
-     * reloads the page on errors to reset the state
-     * @param {File} file
-     * @returns {Promise<void>}
-     */
+    async function readError(res) {
+        const body = await res.json().catch(() => ({}));
+        return body.error || res.status;
+    }
+
+    async function uploadFile(file, progressBar) {
+        const startRes = await apiPost(`${API_URL}/upload/start`, {
+            filename: file.name,
+            size: file.size,
+            contentType: file.type,
+        });
+        if (!startRes.ok) throw new Error(await readError(startRes));
+        const { jobid, partSize } = await startRes.json();
+        if (!jobid) throw new Error(translate("transcribe.error.noJobId"));
+
+        const parts = [];
+        const totalParts = Math.max(1, Math.ceil(file.size / partSize));
+        progressBar.max = file.size;
+        progressBar.value = 0;
+
+        for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
+            const chunk = file.slice((partNumber - 1) * partSize, partNumber * partSize);
+            setTranscriptionStatus(`${translate("transcribe.status.uploading")} ${Math.floor(((partNumber - 1) / totalParts) * 100)}%`);
+            const partRes = await apiFetch(`${API_URL}/upload/${jobid}/${partNumber}`, { method: "PUT", body: chunk });
+            if (!partRes.ok) throw new Error(await readError(partRes));
+            parts.push(await partRes.json());
+            progressBar.value = Math.min(file.size, partNumber * partSize);
+        }
+
+        const completeRes = await apiPost(`${API_URL}/upload/${jobid}/complete`, { parts });
+        if (!completeRes.ok) throw new Error(await readError(completeRes));
+        return jobid;
+    }
+
     async function startTranscription(file) {
-        const buffer = await file.arrayBuffer();
-        const clonedFile = new File([buffer], file.name, { type: file.type });
-
-        const formData = new FormData();
-        formData.append("jobid", String(crypto.randomUUID()));
-        formData.append("file", clonedFile);
-
         try {
             dropButton.disabled = true;
             uploadSection.style.display = "none";
@@ -51,27 +71,10 @@ function setupTranscribe() {
             fileSizeLabel.textContent = `${sizeMB.toFixed(1)} MB`;
 
             const progressBar = document.getElementById('progress-bar');
-            progressBar.removeAttribute('value');
-            progressBar.removeAttribute('max');
-
-            const res = await apiFetch(`${API_URL}/upload`, { method: "POST", body: formData });
-
-            if (!res.ok) {
-                alert(translate("transcribe.error.start") + " " + res);
-                window.location.reload();
-            }
-
-            const data = await res.json();
-
-            if (!data.jobid) {
-                alert(translate("transcribe.error.noJobId") + " " + res);
-                window.location.reload();
-            }
-
-            currentJobId = data.jobid;
+            currentJobId = await uploadFile(file, progressBar);
             sessionStorage.setItem("currentJobId", currentJobId);
 
-            startWebSocket(currentJobId);
+            pollStatus(currentJobId);
 
         } catch (err) {
             console.error("error starting transcription:", err);
@@ -80,40 +83,33 @@ function setupTranscribe() {
         }
     }
 
-    /**
-     * opens a websocket to receive status updates for a job id
-     * navigates to the transcription view when the job completes
-     * displays an alert and closes the socket on error
-     * @param {string} jobid
-     */
-    function startWebSocket(jobid) {
-        const ws = new WebSocket(WS_URL);
+    async function pollStatus(jobid) {
+        let job;
+        try {
+            const res = await apiFetch(`${API_URL}/jobs/${jobid}`, { cache: "no-store" });
+            if (!res.ok) throw new Error(await readError(res));
+            job = await res.json();
+        } catch (err) {
+            console.error("status check failed:", err);
+            setTimeout(() => pollStatus(jobid), POLL_INTERVAL_MS * 2);
+            return;
+        }
 
-        ws.onopen = () => {
-            ws.send(JSON.stringify({ jobid }));
-            console.log("ws connected for job:", jobid);
-        };
+        setTranscriptionStatus(job.status + "...");
 
-        ws.onmessage = async (event) => {
-            const msg = JSON.parse(event.data);
-            console.log("WS status:", msg);
+        if (job.status === "completed") {
+            sessionStorage.setItem("currentJobId", jobid);
+            navigateTo("/transcription");
+            return;
+        }
 
-            setTranscriptionStatus(msg.status + "...");
+        if (job.status === "error") {
+            alert(translate("transcribe.error.failedPrefix") + " " + job.error);
+            window.location.reload();
+            return;
+        }
 
-            if (msg.status === "completed") {
-                ws.close();
-                sessionStorage.setItem("currentJobId", jobid)
-                navigateTo("/transcription")
-            }
-
-            if (msg.status === "error") {
-                ws.close();
-                alert(translate("transcribe.error.failedPrefix") + " " + msg.error);
-            }
-        };
-
-        ws.onerror = (e) => console.error("ws error:", e);
-        ws.onclose = () => console.log("ws closed");
+        setTimeout(() => pollStatus(jobid), POLL_INTERVAL_MS);
     }
 
     /**
