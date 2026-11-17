@@ -8,6 +8,6 @@ node_modules
 Dockerfile
 fly.toml
 *.pyc
-asr_options.py.dev.vars
+.dev.vars
 .wrangler
 .venv
