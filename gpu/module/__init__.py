@@ -1,6 +1,7 @@
 from numpy import ndarray
 from pandas import DataFrame
 from module.dataclasses import TranscriptionError, TranscriptionResult, AlignmentResult
+from module.models import get_whisper_model, get_align_model, get_diarization_pipeline
 from module.pipeline import load_audio, transcribe_audio, align_transcript_segments, run_diarization_pipeline, postprocess_segments
 from typing import Callable
 from enum import Enum
@@ -12,6 +13,11 @@ class CurrentState(str, Enum):
     ALIGNING = "aligning"
     DIARIZING = "diarizing"
     POSTPROCESSING = "postprocessing"
+
+def warm_up() -> None:
+    get_whisper_model()
+    get_align_model()
+    get_diarization_pipeline()
 
 def generate_diarized_transcript(audio_bytes: bytes, on_status: Callable[[str], None] | None = None) -> bytes:
     """runs transcription, alignment, diarization, and formatting for a single audio blob"""
@@ -30,4 +36,4 @@ def generate_diarized_transcript(audio_bytes: bytes, on_status: Callable[[str], 
     except TranscriptionError as e: raise TranscriptionError(f"transcription with diarization failed: {e}") from e
     except Exception as e: raise Exception(f"transcription with diarization failed: {e}") from e
 
-__all__ = ["generate_diarized_transcript"]
+__all__ = ["generate_diarized_transcript", "warm_up"]

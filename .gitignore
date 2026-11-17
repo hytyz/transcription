@@ -10,3 +10,4 @@ fly.toml
 *.pyc
 asr_options.py.dev.vars
 .wrangler
+.venv
