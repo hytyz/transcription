@@ -1,4 +1,4 @@
-import json; import logging; import os; import tempfile; import threading; import time
+import gc; import json; import logging; import os; import tempfile; import threading; import time
 from datetime import datetime; from enum import Enum; from pathlib import Path
 
 import requests
@@ -81,6 +81,13 @@ def _download_audio(jobid, path):
             size += len(chunk)
     return size
 
+def _free_gpu_memory():
+    gc.collect()
+    try:
+        import torch
+        if torch.cuda.is_available(): torch.cuda.empty_cache()
+    except Exception: pass
+
 def process(job: dict):
     jobid = job["jobid"]
     suffix = Path(job.get("filename") or "").suffix or ".audio"
@@ -106,6 +113,7 @@ def process(job: dict):
     finally:
         try: os.remove(path)
         except OSError: pass
+        _free_gpu_memory()
 
 def main():
     log_with_extra(logging.INFO, "loading models")
