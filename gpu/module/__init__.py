@@ -1,8 +1,8 @@
 from numpy import ndarray
 from pandas import DataFrame
-from module.dataclasses import TranscriptionError, TranscriptionResult, AlignmentResult
-from module.models import get_whisper_model, get_align_model, get_diarization_pipeline
-from module.pipeline import load_audio, transcribe_audio, align_transcript_segments, run_diarization_pipeline, postprocess_segments
+from .dataclasses import TranscriptionError, TranscriptionResult, AlignmentResult
+from .models import get_whisper_model, get_align_model, get_diarization_pipeline
+from .pipeline import load_audio, transcribe_audio, align_transcript_segments, run_diarization_pipeline, postprocess_segments
 from typing import Callable
 from enum import Enum
 

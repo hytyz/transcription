@@ -3,7 +3,7 @@ from typing import cast, Final
 from whisperx.asr import FasterWhisperPipeline
 from whisperx.diarize import DiarizationPipeline
 from .dataclasses import TranscriptionError, AlignMetadata, align_metadata_from_whisper
-from transcription.module.asr_options import asr_options
+from .asr_options import asr_options
 
 # determines the n of speakers and how often segments are merged or split across speakers
 DIARIZATION_CLUSTER_THRESHOLD: Final[float] = 0.5 # try lowering to reduce overmerging
