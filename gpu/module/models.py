@@ -9,7 +9,7 @@ from .asr_options import asr_options
 DIARIZATION_CLUSTER_THRESHOLD = 0.5 # try lowering to reduce overmerging
 _DEVICE = "cuda" # required for diarization on gpu
 _WHISPER_MODEL_NAME = os.environ.get("WHISPER_MODEL", "large")
-_DIARIZATION_MODEL_NAME = os.environ.get("DIARIZATION_MODEL", "pyannote/speaker-diarization@2.1")
+_DIARIZATION_MODEL_NAME = os.environ.get("DIARIZATION_MODEL", "pyannote/speaker-diarization-community-1")
 _ALIGN_MODEL: torch.nn.Module | None = None
 _ALIGN_METADATA: AlignMetadata | None = None
 _DIARIZATION_PIPELINE: DiarizationPipeline | None = None
@@ -50,8 +50,9 @@ def get_align_model() -> tuple[torch.nn.Module, AlignMetadata]:
 def get_diarization_pipeline():
     global _DIARIZATION_PIPELINE
     if _DIARIZATION_PIPELINE is None:
-        # https://github.com/m-bain/whisperX/issues/499 -- do NOT switch from the 2.1 model
-        _DIARIZATION_PIPELINE = DiarizationPipeline(model_name=_DIARIZATION_MODEL_NAME, use_auth_token=_HF_TOKEN, device=_DEVICE)
+        # whisperx 3.8 renamed use_auth_token to token, and 3.8.5 still had use_auth_token left in places (whisperX#1406)
+        try: _DIARIZATION_PIPELINE = DiarizationPipeline(model_name=_DIARIZATION_MODEL_NAME, token=_HF_TOKEN, device=_DEVICE)
+        except TypeError: _DIARIZATION_PIPELINE = DiarizationPipeline(model_name=_DIARIZATION_MODEL_NAME, use_auth_token=_HF_TOKEN, device=_DEVICE)
         try:
             _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": DIARIZATION_CLUSTER_THRESHOLD}})
         except Exception as e:
