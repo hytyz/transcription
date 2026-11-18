@@ -5,6 +5,7 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv()
+os.environ.setdefault("PYANNOTE_METRICS_ENABLED", "false")
 
 from module import generate_diarized_transcript, warm_up
 
