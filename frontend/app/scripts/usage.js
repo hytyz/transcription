@@ -1,4 +1,5 @@
 import { navigateTo, BASE_URL, AUTH_URL } from "../router.js";
+import { translate } from "./i18n.js";
 
 /**
  * creates the usage page
@@ -27,7 +28,7 @@ function setupUsagePage() {
     const msg = document.getElementById('msg');
 
     getUsageForCurrentUser().then((res) => {
-       console.log(res)
+       if (!res) return;
        document.getElementById('total-api-calls').textContent = res.usage 
        if (res.usage > 20){ 
            document.getElementById('total-api-calls').textContent = `${res.usage} (warning usage is above 20)`
