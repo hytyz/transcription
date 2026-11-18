@@ -67,17 +67,5 @@
   "transcribe.status.diarizing": "figuring out who said what",
   "transcribe.status.postprocessing": "postprocessing",
   "transcribe.status.completed": "done",
-  "transcribe.status.error": "failed",
-
-  "usage.title": "api usage",
-  "usage.summary.total": "total api usage:",
-  "usage.summary.user": "user:",
-  "usage.table.emailHeader": "email",
-  "usage.table.usageCountHeader": "usage count",
-  "usage.table.endpointHeader": "endpoint",
-  "usage.table.apiCallsHeader": "api calls",
-  "usage.error.tableBodyNotFound": "failed to load usage: table body not found",
-  "usage.error.display": "failed to display usage",
-  "usage.error.generalPrefix": "failed to load usage:",
-  "usage.link.back": "back"
+  "transcribe.status.error": "failed"
 }

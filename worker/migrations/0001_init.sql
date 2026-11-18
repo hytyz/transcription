@@ -1,8 +1,7 @@
 CREATE TABLE IF NOT EXISTS users (
     email TEXT PRIMARY KEY,
     password_hash TEXT NOT NULL,
-    salt TEXT NOT NULL,
-    api_usage INTEGER NOT NULL DEFAULT 0
+    salt TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS transcriptions (
@@ -29,8 +28,3 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at);
-
-CREATE TABLE IF NOT EXISTS route_usage (
-    route TEXT PRIMARY KEY,
-    count INTEGER NOT NULL DEFAULT 0
-);

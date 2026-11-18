@@ -119,7 +119,6 @@ jobs.post("/upload/:jobid/complete", csrf, async (c) => {
         ts,
         job.filename,
       ),
-      c.env.DB.prepare("UPDATE users SET api_usage = api_usage + 1 WHERE email = ?").bind(job.email),
     );
   }
   await c.env.DB.batch(statements);

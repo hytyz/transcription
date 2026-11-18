@@ -1,3 +1,2 @@
 JWT_SECRET=REPLACE_WITH_OUTPUT_OF_openssl_rand_-hex_32
 WORKER_TOKEN=REPLACE_WITH_OUTPUT_OF_openssl_rand_-hex_32
-ADMIN_EMAIL=you@example.com

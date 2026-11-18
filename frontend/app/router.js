@@ -1,6 +1,5 @@
 import { initAuth, login, logoutUser, register } from "./scripts/auth.js";
 import { dashboardScript } from "./scripts/dashboard.js";
-import { setupUsagePage } from "./scripts/usage.js";
 import { setupTranscribe } from "./scripts/transcribe.js";
 import { setupTranscription } from "./scripts/transcription.js";
 import { updateAnchorHref, applyAuthUI } from "./scripts/utils.js";
@@ -25,7 +24,6 @@ const routes = [
   { path: "/login", view: "views/login.html", onload: login },
   { path: "/register", view: "views/register.html", onload: register },
   { path: "/dashboard", view: "views/dashboard.html", requiresAuth: true, onload: dashboardScript },
-  { path: "/usage", view: "views/usage.html", requiresAuth: true, onload: setupUsagePage },
   { path: "/transcription", view: "views/transcription.html", requiresAuth: false, onload: setupTranscription }
 ];
 

@@ -38,10 +38,6 @@
   font-size: var(--font-size);
 }
 
-#usage-back-button {
-    padding-bottom: var(--space-xl);
-}
-
 .auth-switch-link {
     margin-top: var(--space-xs);
     text-align: center;
