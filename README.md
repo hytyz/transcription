@@ -1,11 +1,9 @@
 # ytyz transcriber
-a small, self-hosted application for diarized audio transcription with a web api, an s3-compatible storage api, authentication, and a reverse-proxy gateway. it exposes http endpoints for uploading audio, tracking transcription status over websocket, storing results in object storage, and managing users with jwt cookies
+a small, self-hosted application for diarized audio transcription. audio is uploaded in the browser, a gpu machine runs whisperx + pyannote on it, and the transcript comes back with speaker labels that can be relabelled, renamed, and downloaded
 
 ## services
-- gateway: reverse proxy, cors handling, request routing
-- auth: user management; pbkdf2 password hashing; rs256 jwt in httponly cookies; users stored in a sqlite db
-- transcription: fastapi service that runs whisperx + pyannote for diarization on (only nvidia) gpu; streams status updates over websocket; saves transcripts to s3
-- s3: bun server that wraps an s3-compatible endpoint for queue files and transcripts
+- worker: cloudflare worker that serves the frontend and the api; pbkdf2 password hashing; hs256 jwt in httponly cookies; users and the job queue in d1; audio and transcripts in r2
+- gpu: python script that polls the worker for jobs and runs whisperx + pyannote on an (only nvidia) gpu, reporting status as it goes
 - frontend: single-page application with client-side routing in vanilla js
 
 ## stretch goals:

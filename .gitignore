@@ -11,3 +11,5 @@ fly.toml
 .dev.vars
 .wrangler
 .venv
+forme.md
+misc.txt
