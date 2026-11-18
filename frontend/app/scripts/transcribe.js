@@ -74,6 +74,9 @@ function setupTranscribe() {
             currentJobId = await uploadFile(file, progressBar);
             sessionStorage.setItem("currentJobId", currentJobId);
 
+            progressBar.removeAttribute('value');
+            progressBar.removeAttribute('max');
+
             pollStatus(currentJobId);
 
         } catch (err) {
