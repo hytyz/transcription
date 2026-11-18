@@ -8,7 +8,7 @@ from .dataclasses import TranscriptionError, Segment, alignment_result_from_whis
 from .models import get_align_model, get_diarization_pipeline, get_device, get_whisper_model
 
 DEVICE = get_device()
-BATCH_SIZE = os.environ.get("BATCH_SIZE", 8)
+BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "8"))
 _FFMPEG_AVAILABLE = which("ffmpeg") is not None # caching ffmpeg presence so that it's not called repeatedly
 
 def load_audio(path):
