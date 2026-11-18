@@ -71,6 +71,7 @@ class StatusReporter:
 
     def report_progress(self, pct):
         with self._lock:
+            if self.progress is not None and int(pct) - self.progress < 5 and pct < 100: return
             self.progress = int(pct)
             self._send()
 
