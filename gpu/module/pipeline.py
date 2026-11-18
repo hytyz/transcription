@@ -1,4 +1,4 @@
-import torch; import whisperx
+import os; import torch; import whisperx
 from numpy import ndarray, frombuffer, clip, dtype
 from shutil import which
 import subprocess
@@ -8,6 +8,7 @@ from .dataclasses import TranscriptionError, Segment, alignment_result_from_whis
 from .models import get_align_model, get_diarization_pipeline, get_device, get_whisper_model
 
 DEVICE = get_device()
+BATCH_SIZE = os.environ.get("BATCH_SIZE", 8)
 _FFMPEG_AVAILABLE = which("ffmpeg") is not None # caching ffmpeg presence so that it's not called repeatedly
 
 def load_audio(path):
@@ -37,7 +38,7 @@ def load_audio(path):
 
 def transcribe_audio(audio: ndarray):
     whisper_model = get_whisper_model()
-    with torch.inference_mode(): raw = whisper_model.transcribe(audio, language="en", task="transcribe")
+    with torch.inference_mode(): raw = whisper_model.transcribe(audio, batch_size=BATCH_SIZE, language="en", task="transcribe")
     return transcription_result_from_whisper(raw)
 
 def align_transcript_segments(audio: ndarray, segments: list[Segment]):
