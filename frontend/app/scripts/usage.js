@@ -59,8 +59,8 @@ function setupUsagePage() {
 
             if (msg) msg.textContent = '';
         }).then(() => {
-            fetch(`${BASE_URL}/__usage`).then(async (res) => {
-                if (res.status != 200) { console.log("failed") }
+            fetch(`${BASE_URL}/__usage`, { credentials: 'include' }).then(async (res) => {
+                if (res.status !== 200) { apiTable.style.display = 'none'; return; }
                 let data = await res.json()
                 const tbody = apiTable.querySelector('tbody');
                 if (!tbody) {
