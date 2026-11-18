@@ -39,13 +39,11 @@ def load_audio(path: str) -> ndarray:
     return clip(audio, -1.0, 1.0)
 
 def transcribe_audio(audio: ndarray) -> TranscriptionResult:
-    """run transcription on audio and return raw segments via cached whisperx model"""
     whisper_model: FasterWhisperPipeline = get_whisper_model()
     with torch.inference_mode(): raw = whisper_model.transcribe(audio, language="en", task="transcribe")
     return transcription_result_from_whisper(raw)
 
 def align_transcript_segments(audio: ndarray, segments: list[Segment]) -> AlignmentResult:
-    """aligns raw whisperx segments to audio via the cached alignment model"""
     align_model, align_metadata = get_align_model()
     whisper_segments = [segment_to_whisper(s) for s in segments]
     raw = whisperx.align(whisper_segments, align_model, 
@@ -55,13 +53,11 @@ def align_transcript_segments(audio: ndarray, segments: list[Segment]) -> Alignm
     return alignment_result_from_whisper(raw)
 
 def run_diarization_pipeline(audio: ndarray) -> DataFrame:
-    """runs speaker diarization on audio via the cached diarization pipeline"""
     diarization_pipeline = get_diarization_pipeline()
     diarization_result: DataFrame = diarization_pipeline(audio, min_speakers=2, max_speakers=5)
     return diarization_result
 
 def postprocess_segments(diarization_result: DataFrame, alignment_result: AlignmentResult) -> bytes:
-    """merges word level speakers and timings into final utterances and formats the transcript"""
     aligned_dict: dict = alignment_result_to_whisper(alignment_result)
     aligned_dict = whisperx.assign_word_speakers(diarization_result, aligned_dict)
     alignment_result: AlignmentResult = alignment_result_from_whisper(aligned_dict)
@@ -101,7 +97,6 @@ def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_r
                     break
 
 def _format_timestamp(total_seconds: float) -> str:
-    """formats a number of seconds into HH:MM:SS"""
     hours: int = int(total_seconds // 3600)
     minutes: int = int((total_seconds % 3600) // 60)
     seconds: int = int(total_seconds % 60)

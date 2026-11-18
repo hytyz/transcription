@@ -6,10 +6,7 @@ import { apiDelete, apiPut, apiFetch } from "./api.js";
  * builds a file card element from a template and inits its expand behavior
  * fetches and caches the transcription text in sessionStorage to avoid repeated network calls
  * sets dataset attributes for later actions like download and edit
- * @param {string} jobid
  * @param {number} createdAt unix seconds
- * @param {string} filename
- * @returns {Promise<HTMLElement>}
  */
 async function createCardFromTemplate(jobid, createdAt, filename) {
     const templateHtml = await fetch("/templates/file.html").then(r => r.text());
@@ -73,11 +70,6 @@ async function createCardFromTemplate(jobid, createdAt, filename) {
     return card;
 }
 
-/**
- * formats a date to yyyymmdd
- * @param {Date} date
- * @returns {string}
- */
 function formatToYYYYMMDD(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0'); // months are zero indexed
@@ -85,12 +77,6 @@ function formatToYYYYMMDD(date) {
     return `${year}${month}${day}`;
 }
 
-/**
- * starts a client-side download for provided text as a .txt file
- * uses a blob url
- * @param {string} text
- * @param {string} filename without extension
- */
 function downloadText(text, filename) {
     // point of the blob is to prevent a repeated fetch to our s3 service when downloading
     const blob = new Blob([text], { type: "text/plain" });
@@ -106,13 +92,6 @@ function downloadText(text, filename) {
     URL.revokeObjectURL(url);
 }
 
-/**
- * deletes a transcription from the database and object storage
- * displays localized alerts on failures; removes the card from the dom on success
- * @param {string} jobid
- * @param {HTMLElement} [card]
- * @returns {Promise<void>}
- */
 async function deleteTranscription(jobid, card) {
     console.log("deleting job:", jobid);
 
@@ -146,11 +125,7 @@ async function deleteTranscription(jobid, card) {
  * renders an input row for each label; validates replacements
  * applies global whole-word replacements; uploads the updated text; updates cache and the ui card
  * also includes a rename file option
- * @param {string} jobid
- * @param {string} currentText
- * @param {string} currentFilename
  * @param {number} createdAt unix timestamp in seconds
- * @returns {Promise<void>}
  */
 async function openModifyModal(jobid, currentText, currentFilename, createdAt) {
     // browsers love caching stuff
@@ -416,11 +391,6 @@ function interceptSelectAll() {
 
 }
 
-/**
- * renders the dashboard
- * loads transcription metadata; renders cards in pages;
- * sets up infinite scroll; enables download, delete, and edit behaviours
- */
 function dashboardScript() {
 
     let allTranscriptions = [];

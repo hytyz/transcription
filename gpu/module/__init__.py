@@ -7,7 +7,6 @@ from typing import Callable
 from enum import StrEnum
 
 class CurrentState(StrEnum):
-    """string enum for transcription pipeline states"""
     RECEIVED = "received"
     TRANSCRIBING = "transcribing"
     ALIGNING = "aligning"
@@ -20,7 +19,6 @@ def warm_up() -> None:
     get_diarization_pipeline()
 
 def generate_diarized_transcript(audio_path: str, on_status: Callable[[str], None] | None = None) -> bytes:
-    """runs transcription, alignment, diarization, and formatting for a single audio file"""
     try:
         if on_status: on_status(CurrentState.RECEIVED)
         audio: ndarray = load_audio(audio_path)

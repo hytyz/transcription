@@ -6,68 +6,57 @@ class TranscriptionError(Exception): pass
 
 @dataclass(frozen=True)
 class Duration:
-    """time bounds in seconds [start, end)"""
     start: float
     end: float
 
 @dataclass
 class Segment:
-    """text segment with timing"""
     duration: Duration
     text: str
 
 @dataclass
 class WordEntry:
-    """word-level entry attached to aligned segments from whisperx"""
     duration: Duration
     word: str
     speaker: str | None
 
 @dataclass
 class WordAlignedSegment(Segment):
-    """segment with text decomposed into word aligned entries"""
     words: list[WordEntry] = field(default_factory=list)
 
 # external api views
 
 @dataclass
 class AlignmentResult:
-    """segments produced by alignment"""
     segments: list[WordAlignedSegment]
 
 @dataclass
 class TranscriptionResult:
-    """output of transcription from whisperx"""
     segments: list[Segment]
 
 @dataclass
 class SpeakerSegment:
-    """diarization-only speaker turn, no text"""
     duration: Duration
     label:str
 
 @dataclass
 class Utterance:
-    """final merged utterance"""
     duration: Duration
     speaker: str
     text:str
 
 @dataclass
 class DiarizationSegment:
-    """a single diarization segment"""
     duration: Duration
     speaker: str | None
     label: str | None
 
 @dataclass
 class Diarization:
-    """container for diarization segments"""
     segments: list[DiarizationSegment]
 
 @dataclass
 class AlignMetadata:
-    """metadata of the alignment model"""
     language: str
     dictionary: dict[str, int]
     type: str

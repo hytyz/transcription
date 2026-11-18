@@ -2,10 +2,6 @@ import { navigateTo, API_URL, POLL_INTERVAL_MS } from "../router.js";
 import { translate } from "./i18n.js";
 import { apiFetch, apiPost } from "./api.js";
 
-/**
- * wires the upload flow; handles file selection; starts a transcription job; tracks progress by polling
- * updates the page to show progress and navigates to the transcription view on completion
- */
 function setupTranscribe() {
     const audioFileInput = document.getElementById("audio-file");
     const dropButton = document.querySelector(".drop-button");
@@ -122,11 +118,6 @@ function setupTranscribe() {
         setTimeout(() => pollStatus(jobid), POLL_INTERVAL_MS);
     }
 
-    /**
-     * shows a readable status text in the progress card
-     * @param {string} status
-     * @returns {Promise<void>}
-     */
     async function setTranscriptionStatus(status) {
         document.getElementById("progress-status").textContent = status;
     }

@@ -24,7 +24,6 @@ if not torch.cuda.is_available(): raise TranscriptionError("cuda is unavailable.
 def get_device() -> str: return _DEVICE
 
 def get_whisper_model() -> FasterWhisperPipeline:
-    """loads and caches the whisperx large model"""
     global _WHISPER_MODEL
     if _WHISPER_MODEL is not None: return _WHISPER_MODEL
     model_name: str = _WHISPER_MODEL_NAME
@@ -41,7 +40,6 @@ def get_whisper_model() -> FasterWhisperPipeline:
     return model
 
 def get_align_model() -> tuple[torch.nn.Module, AlignMetadata]:
-    """loads and caches the whisperx alignment model and its metadata"""
     global _ALIGN_MODEL, _ALIGN_METADATA
     if _ALIGN_MODEL is None or _ALIGN_METADATA is None:
         model, meta = whisperx.load_align_model(language_code="en", device=_DEVICE)
@@ -50,7 +48,6 @@ def get_align_model() -> tuple[torch.nn.Module, AlignMetadata]:
     return cast(torch.nn.Module, _ALIGN_MODEL), cast(AlignMetadata, _ALIGN_METADATA)
 
 def get_diarization_pipeline() -> DiarizationPipeline:
-    """loads and caches the pyannote diarization pipeline used by whisperx"""
     global _DIARIZATION_PIPELINE
     if _DIARIZATION_PIPELINE is None:
         # https://github.com/m-bain/whisperX/issues/499 -- do NOT switch from the 2.1 model

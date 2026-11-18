@@ -1,10 +1,6 @@
 /**
  * fetches with csrf headers
  * includes x-requested-with header
- * 
- * @param {string} url url to fetch
- * @param {RequestInit} [options={}] fetch options
- * @returns {Promise<Response>}
  */
 export async function apiFetch(url, options = {}) {
     const method = (options.method || 'GET').toUpperCase();
@@ -23,12 +19,6 @@ export async function apiFetch(url, options = {}) {
     });
 }
 
-/**
- * makes a json POST request with csrf
- * @param {string} url 
- * @param {object} body 
- * @returns {Promise<Response>}
- */
 export async function apiPost(url, body) {
     return apiFetch(url, {
         method: 'POST',
@@ -37,12 +27,6 @@ export async function apiPost(url, body) {
     });
 }
 
-/**
- * makes a json PUT request with csrf
- * @param {string} url 
- * @param {object} body 
- * @returns {Promise<Response>}
- */
 export async function apiPut(url, body) {
     return apiFetch(url, {
         method: 'PUT',
@@ -51,12 +35,6 @@ export async function apiPut(url, body) {
     });
 }
 
-/**
- * makes a json DELETE request with csrf
- * @param {string} url 
- * @param {object} [body] 
- * @returns {Promise<Response>}
- */
 export async function apiDelete(url, body) {
     const options = {
         method: 'DELETE',
