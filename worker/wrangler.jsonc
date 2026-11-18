@@ -17,7 +17,7 @@
     {
       "binding": "DB",
       "database_name": "transcription",
-      "database_id": "YOUR_D1_DATABASE_ID",
+      "database_id": "b6b899ea-3b98-493b-a82f-980d552c98bf",
       "migrations_dir": "migrations"
     }
   ],
