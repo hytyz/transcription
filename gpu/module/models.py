@@ -6,7 +6,7 @@ from .dataclasses import TranscriptionError, AlignMetadata, align_metadata_from_
 from .asr_options import asr_options
 
 # determines the n of speakers and how often segments are merged or split across speakers
-DIARIZATION_CLUSTER_THRESHOLD = 0.5 # try lowering to reduce overmerging
+DIARIZATION_CLUSTER_THRESHOLD = os.environ.get("DIARIZATION_THRESHOLD", "").strip() # empty = whatever the model ships with, lower it if speakers get merged
 _DEVICE = "cuda" # required for diarization on gpu
 _WHISPER_MODEL_NAME = os.environ.get("WHISPER_MODEL", "large")
 _DIARIZATION_MODEL_NAME = os.environ.get("DIARIZATION_MODEL", "pyannote/speaker-diarization-community-1")
@@ -53,8 +53,7 @@ def get_diarization_pipeline():
         # whisperx 3.8 renamed use_auth_token to token, and 3.8.5 still had use_auth_token left in places (whisperX#1406)
         try: _DIARIZATION_PIPELINE = DiarizationPipeline(model_name=_DIARIZATION_MODEL_NAME, token=_HF_TOKEN, device=_DEVICE)
         except TypeError: _DIARIZATION_PIPELINE = DiarizationPipeline(model_name=_DIARIZATION_MODEL_NAME, use_auth_token=_HF_TOKEN, device=_DEVICE)
-        try:
-            _DIARIZATION_PIPELINE.set_params({"clustering": {"threshold": DIARIZATION_CLUSTER_THRESHOLD}})
-        except Exception as e:
-            print(f"did not set diarization clustering threshold: {e}")
+        if DIARIZATION_CLUSTER_THRESHOLD:
+            try: _DIARIZATION_PIPELINE.model.instantiate({"clustering": {"threshold": float(DIARIZATION_CLUSTER_THRESHOLD)}})
+            except Exception as e: print(f"did not set diarization clustering threshold: {e}")
     return cast(DiarizationPipeline, _DIARIZATION_PIPELINE)
