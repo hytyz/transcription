@@ -14,12 +14,12 @@
 }
 
 .modal {
-    background: white;
+    background: var(--bg);
     width: 90%;
     max-width: 30rem;
     animation: modalFadeIn 0.25s ease-out;
     border: #000;
-    border: var(--border-width-thick) solid var(--black);
+    border: var(--border-width-thick) solid var(--fg);
     padding: var(--space-md);
     align-items: center;
     display: flex;
@@ -50,7 +50,7 @@
 .rename-input {
     width: 100%;
     padding: var(--space-xs) var(--space-sm);
-    border: var(--border-width-thick) solid var(--black);
+    border: var(--border-width-thick) solid var(--fg);
     font-size: 1rem;
     box-sizing: border-box;
     text-align: center;

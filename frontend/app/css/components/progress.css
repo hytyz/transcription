@@ -1,6 +1,6 @@
 #progress-bar {
-    background-color: var(--white);
-    border: var(--border-width-thick) solid var(--black);
+    background-color: var(--bg);
+    border: var(--border-width-thick) solid var(--fg);
     -webkit-appearance: none;
     appearance: none;
     border-radius: 0;
@@ -11,22 +11,22 @@
 }
 
 #progress-bar::-webkit-progress-bar {
-    background-color: var(--white);
+    background-color: var(--bg);
     border-radius: 0;
 }
 
 #progress-bar::-webkit-progress-value,
 #progress-bar::-moz-progress-bar {
     animation: progress-animation 1.2s linear infinite;
-    background-color: var(--black);
+    background-color: var(--fg);
     border-radius: 0;
     transform-origin: 0 0;
 }
 
 .progress-fallback {
     display: none;
-    background-color: var(--white);
-    border: var(--border-width-thick) solid var(--black);
+    background-color: var(--bg);
+    border: var(--border-width-thick) solid var(--fg);
     height: var(--space-md);
     overflow: hidden;
     flex: 1 1 8rem;
@@ -38,7 +38,7 @@
     display: block;
     height: 100%;
     width: 100%;
-    background-color: var(--black);
+    background-color: var(--fg);
     animation: progress-animation 1.2s linear infinite;
     transform: translateX(-100%);
 }

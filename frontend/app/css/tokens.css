@@ -1,7 +1,9 @@
 :root {
+    --bg: #fff;
+    --fg: #000;
     --white: #fff;
-    --black: #000;
     --grey: #ccc;
+    color-scheme: light;
 
     --space-xs: 0.25rem;
     --space-sm: 0.5rem;
@@ -16,4 +18,11 @@
     --font-size: 1rem;
     --font-size-lg: 1.25rem;
     --font-size-xl: 2rem;
+}
+
+:root[data-theme="dark"] {
+    --bg: #000;
+    --fg: #fff;
+    --grey: #333;
+    color-scheme: dark;
 }

@@ -17,8 +17,8 @@ body {
 
 body {
     font-family: "Courier New", monospace;
-    color: var(--black);
-    background-color: var(--white);
+    color: var(--fg);
+    background-color: var(--bg);
 }
 
 button,
@@ -30,7 +30,7 @@ select {
 
 .logo {
     background-color: var(--grey);
-    border: var(--border-width-thick) solid var(--black);
+    border: var(--border-width-thick) solid var(--fg);
     display: block;
     height: var(--space-2xl);
     width: var(--space-2xl);

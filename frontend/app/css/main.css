@@ -13,6 +13,7 @@
 @import url("./components/modal.css") layer(components);
 @import url("./components/table.css") layer(components);
 @import url("./components/progress.css") layer(components);
+@import url("./components/theme.css") layer(components);
 
 @import url("./utilities.css") layer(utilities);
 @import url("./animations.css") layer(utilities);

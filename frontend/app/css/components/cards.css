@@ -1,6 +1,6 @@
 .file-card-body {
-    background-color: var(--white);
-    border: var(--border-width-thick) solid var(--black);
+    background-color: var(--bg);
+    border: var(--border-width-thick) solid var(--fg);
 }
 
 .file-card-footer,
@@ -27,7 +27,7 @@
 .upload-card-inner {
     padding: var(--space-md) var(--space-lg);
     background-color: var(--grey);
-    border: var(--border-width-thick) solid var(--black);
+    border: var(--border-width-thick) solid var(--fg);
 }
 
 .upload-card-header {
@@ -44,7 +44,7 @@
 .file-card-inner {
     padding: var(--space-md) var(--space-lg) var(--space-xs) var(--space-lg);
     background-color: var(--grey);
-    border: var(--border-width-thick) solid var(--black);
+    border: var(--border-width-thick) solid var(--fg);
 }
 
 .file-card-header {

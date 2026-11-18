@@ -12,7 +12,7 @@ h2 {
 
 a {
     text-decoration: none;
-    color: var(--black);
+    color: var(--fg);
 }
 
 a:hover {
@@ -20,6 +20,6 @@ a:hover {
 }
 
 a:focus-visible {
-    outline: var(--border-width-thin) solid var(--black);
+    outline: var(--border-width-thin) solid var(--fg);
     outline-offset: var(--border-width-thin);
 }

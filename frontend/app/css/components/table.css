@@ -5,8 +5,8 @@ table {
     width: 100%;
     max-width: 30rem;
     margin-top: var(--space-xl);
-    background-color: var(--white);
-    border: var(--border-width-thick) solid var(--black);
+    background-color: var(--bg);
+    border: var(--border-width-thick) solid var(--fg);
 
 }
 
@@ -47,5 +47,5 @@ table>tbody>tr:first-child>td {
 }
 
 table thead th {
-    border-bottom: var(--border-width-thick) solid var(--black);
+    border-bottom: var(--border-width-thick) solid var(--fg);
 }

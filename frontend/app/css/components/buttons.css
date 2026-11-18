@@ -1,12 +1,12 @@
 button:focus-visible {
-    outline: var(--border-width-thin) solid var(--black);
+    outline: var(--border-width-thin) solid var(--fg);
     outline-offset: var(--border-width-thin);
 }
 
 .drop-button,
 .auth-button {
     background-color: var(--grey);
-    border: var(--border-width-thick) solid var(--black);
+    border: var(--border-width-thick) solid var(--fg);
     font-size: var(--font-size-lg);
     cursor: pointer;
     transition: background-color 0.15s ease;
@@ -25,5 +25,5 @@ button:focus-visible {
 
 .drop-button:hover,
 .auth-button:hover {
-    background-color: var(--white);
+    background-color: var(--bg);
 }

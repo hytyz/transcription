@@ -4,6 +4,7 @@ import { setupTranscribe } from "./scripts/transcribe.js";
 import { setupTranscription } from "./scripts/transcription.js";
 import { updateAnchorHref, applyAuthUI } from "./scripts/utils.js";
 import { loadMessages, applyTranslations, translate } from "./scripts/i18n.js";
+import { setupTheme } from "./scripts/theme.js";
 import config from "./config.js";
 
 const viewCache = {}
@@ -100,6 +101,7 @@ document.addEventListener("click", (e) => {
 window.addEventListener("popstate", router);
 
 // first load
+setupTheme();
 await loadMessages("en");
 authState = await initAuth(AUTH_URL);
 router();

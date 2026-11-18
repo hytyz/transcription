@@ -18,7 +18,7 @@
 }
 
 .form-row input {
-    border: var(--border-width-thin) solid var(--black);
+    border: var(--border-width-thin) solid var(--fg);
     flex: 1;
     font-size: var(--font-size);
     padding: var(--space-xs);

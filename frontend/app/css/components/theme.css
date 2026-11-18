@@ -1,0 +1,30 @@
+.theme-toggle {
+    appearance: none;
+    position: fixed;
+    left: var(--space-md);
+    bottom: var(--space-md);
+    width: var(--space-md);
+    height: var(--space-md);
+    margin: 0;
+    border: var(--border-width-thin) solid var(--fg);
+    background-color: var(--bg);
+    cursor: pointer;
+    z-index: 1;
+}
+
+.theme-toggle:checked {
+    background-color: var(--fg);
+}
+
+.theme-toggle:focus-visible {
+    outline: var(--border-width-thin) solid var(--fg);
+    outline-offset: var(--border-width-thin);
+}
+
+:root[data-theme="dark"] img:not(.logo) {
+    filter: invert(1);
+}
+
+:root[data-theme="dark"] .logo {
+    border: var(--border-width-thick) solid var(--white);
+}
