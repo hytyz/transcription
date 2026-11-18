@@ -32,8 +32,6 @@
 
   "dashboard.delete.dbFailedPrefix": "db deletion failed:",
   "dashboard.delete.dbNetworkError": "network error when deleting from db",
-  "dashboard.delete.s3FailedPrefix": "s3 deletion failed:",
-  "dashboard.delete.s3NetworkError": "network error when deleting from s3",
   
   "file.defaultDownloadName": "transcript",
   "file.namePlaceholder": "filename",

@@ -107,7 +107,7 @@ function downloadText(text, filename) {
 }
 
 /**
- * deletes a transcription from the database first, then from object storage
+ * deletes a transcription from the database and object storage
  * displays localized alerts on failures; removes the card from the dom on success
  * @param {string} jobid
  * @param {HTMLElement} [card]
@@ -130,26 +130,10 @@ async function deleteTranscription(jobid, card) {
         alert(translate("dashboard.delete.dbNetworkError"));
         return;
     }
-    let s3Res;
-    try {
-        s3Res = await apiFetch(`${BASE_URL}/s3/transcriptions/${jobid}`, {
-            method: "DELETE",
-        });
-
-        if (!s3Res.ok) {
-            const err = await s3Res.json().catch(() => ({}));
-            alert(translate("dashboard.delete.s3FailedPrefix") + " " + (err.message || s3Res.status));
-            return;
-        }
-    } catch (err) {
-        console.error("s3 delete error:", err);
-        alert(translate("dashboard.delete.s3NetworkError"));
-        return;
-    }
     if (card) {
         card.remove();
     }
-    console.log(`deleted transcription ${jobid} from db and s3`);
+    console.log(`deleted transcription ${jobid}`);
 
     if (window.location.pathname === "/transcription") {
         window.location.href = "/";
