@@ -8,7 +8,7 @@ from .asr_options import asr_options
 # determines the n of speakers and how often segments are merged or split across speakers
 DIARIZATION_CLUSTER_THRESHOLD = os.environ.get("DIARIZATION_THRESHOLD", "").strip() # empty = whatever the model ships with, lower it if speakers get merged
 _DEVICE = "cuda" # required for diarization on gpu
-_WHISPER_MODEL_NAME = os.environ.get("WHISPER_MODEL", "large")
+_WHISPER_MODEL_NAME = os.environ.get("WHISPER_MODEL", "large-v3-turbo")
 _DIARIZATION_MODEL_NAME = os.environ.get("DIARIZATION_MODEL", "pyannote/speaker-diarization-community-1")
 _ALIGN_MODEL: torch.nn.Module | None = None
 _ALIGN_METADATA: AlignMetadata | None = None
