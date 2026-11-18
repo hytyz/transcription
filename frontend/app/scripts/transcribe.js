@@ -86,7 +86,8 @@ function setupTranscribe() {
         if (job.status === "queued" && job.ahead > 0) {
             return `${translate("transcribe.status.queued", "queued")} (${job.ahead} ${translate("transcribe.status.ahead")})`;
         }
-        return translate(`transcribe.status.${job.status}`, job.status) + "... " + job.progress + "%";
+        const progress = job.progress != null ? ` ${job.progress}%` : "";
+        return translate(`transcribe.status.${job.status}`, job.status) + "..." + progress;
     }
 
     async function pollStatus(jobid) {
