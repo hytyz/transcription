@@ -62,56 +62,56 @@ class AlignMetadata:
     type: str
 
 # helpers 
-def _duration_from(d: dict) -> Duration:
+def _duration_from(d: dict):
     return Duration(start=float(d.get("start", 0.0)), end=float(d.get("end", 0.0)))
 
-def _duration_to(d: Duration) -> dict:
+def _duration_to(d: Duration):
     return {"start": d.start, "end": d.end}
 
-def segment_from_whisper(d: dict) -> Segment:
+def segment_from_whisper(d: dict):
     return Segment(duration=_duration_from(d), text=str(d.get("text", "")))
 
-def segment_to_whisper(s: Segment) -> dict:
+def segment_to_whisper(s: Segment):
     out = _duration_to(s.duration)
     out["text"] = s.text
     return out
 
-def transcription_result_from_whisper(d: dict) -> TranscriptionResult:
+def transcription_result_from_whisper(d: dict):
     return TranscriptionResult(segments=[segment_from_whisper(sd) for sd in d.get("segments", [])])
 
-def transcription_result_to_whisper(r: TranscriptionResult) -> dict:
+def transcription_result_to_whisper(r: TranscriptionResult):
     return {"segments": [segment_to_whisper(s) for s in r.segments]}
 
-def word_from_whisper(d: dict) -> WordEntry:
+def word_from_whisper(d: dict):
     return WordEntry(duration=_duration_from(d), word=str(d.get("word", "")), speaker=d.get("speaker"))
 
-def word_to_whisper(w: WordEntry) -> dict:
+def word_to_whisper(w: WordEntry):
     out = _duration_to(w.duration)
     out["word"] = w.word
     if w.speaker is not None: out["speaker"] = w.speaker
     return out
 
-def word_aligned_segment_from_whisper(d: dict) -> WordAlignedSegment:
+def word_aligned_segment_from_whisper(d: dict):
     base = segment_from_whisper(d)
     return WordAlignedSegment(duration=base.duration, 
                               text=base.text, 
                               words=[word_from_whisper(w) for w in d.get("words", [])])
 
-def word_aligned_segment_to_whisper(s: WordAlignedSegment) -> dict:
+def word_aligned_segment_to_whisper(s: WordAlignedSegment):
     out = segment_to_whisper(s)
     out["words"] = [word_to_whisper(w) for w in s.words]
     return out
 
-def alignment_result_from_whisper(d: dict) -> AlignmentResult:
+def alignment_result_from_whisper(d: dict):
     return AlignmentResult(segments=[word_aligned_segment_from_whisper(sd) for sd in d.get("segments", [])])
 
-def alignment_result_to_whisper(r: AlignmentResult) -> dict:
+def alignment_result_to_whisper(r: AlignmentResult):
     return {"segments": [word_aligned_segment_to_whisper(s) for s in r.segments]}
 
-def align_metadata_from_whisper(d: dict) -> AlignMetadata:
+def align_metadata_from_whisper(d: dict):
     return AlignMetadata(language=str(d.get("language", "")), 
                          dictionary=dict(d.get("dictionary", {})), 
                          type=str(d.get("type", "")))
 
-def align_metadata_to_whisper(m: AlignMetadata) -> dict:
+def align_metadata_to_whisper(m: AlignMetadata):
     return {"language": m.language, "dictionary": m.dictionary, "type": m.type}

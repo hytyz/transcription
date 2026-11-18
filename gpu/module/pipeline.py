@@ -2,18 +2,15 @@ import torch; import whisperx
 from numpy import ndarray, frombuffer, clip, dtype
 from shutil import which
 import subprocess
-from typing import Final
 from pandas import DataFrame
-from whisperx.asr import FasterWhisperPipeline
-from .dataclasses import TranscriptionError, TranscriptionResult, \
-    Segment, AlignmentResult, alignment_result_from_whisper, \
+from .dataclasses import TranscriptionError, Segment, alignment_result_from_whisper, \
     alignment_result_to_whisper, transcription_result_from_whisper, segment_to_whisper
 from .models import get_align_model, get_diarization_pipeline, get_device, get_whisper_model
 
-DEVICE: Final[str] = get_device()
-_FFMPEG_AVAILABLE: Final[bool] = which("ffmpeg") is not None # caching ffmpeg presence so that it's not called repeatedly
+DEVICE = get_device()
+_FFMPEG_AVAILABLE = which("ffmpeg") is not None # caching ffmpeg presence so that it's not called repeatedly
 
-def load_audio(path: str) -> ndarray:
+def load_audio(path):
     """
     decodes an audio file on disk into a mono 16 khz float32 waveform via ffmpeg
     returns a 1d numpy array with samples normalised to [-1.0, 1.0] per whisperx's wants
@@ -38,12 +35,12 @@ def load_audio(path: str) -> ndarray:
     audio = frombuffer(process.stdout, dtype=dtype("<f4"))
     return clip(audio, -1.0, 1.0)
 
-def transcribe_audio(audio: ndarray) -> TranscriptionResult:
-    whisper_model: FasterWhisperPipeline = get_whisper_model()
+def transcribe_audio(audio: ndarray):
+    whisper_model = get_whisper_model()
     with torch.inference_mode(): raw = whisper_model.transcribe(audio, language="en", task="transcribe")
     return transcription_result_from_whisper(raw)
 
-def align_transcript_segments(audio: ndarray, segments: list[Segment]) -> AlignmentResult:
+def align_transcript_segments(audio: ndarray, segments: list[Segment]):
     align_model, align_metadata = get_align_model()
     whisper_segments = [segment_to_whisper(s) for s in segments]
     raw = whisperx.align(whisper_segments, align_model, 
@@ -54,16 +51,16 @@ def align_transcript_segments(audio: ndarray, segments: list[Segment]) -> Alignm
 
 def run_diarization_pipeline(audio: ndarray) -> DataFrame:
     diarization_pipeline = get_diarization_pipeline()
-    diarization_result: DataFrame = diarization_pipeline(audio, min_speakers=2, max_speakers=5)
+    diarization_result = diarization_pipeline(audio, min_speakers=2, max_speakers=5)
     return diarization_result
 
-def postprocess_segments(diarization_result: DataFrame, alignment_result: AlignmentResult) -> bytes:
-    aligned_dict: dict = alignment_result_to_whisper(alignment_result)
+def postprocess_segments(diarization_result: DataFrame, alignment_result) -> bytes:
+    aligned_dict = alignment_result_to_whisper(alignment_result)
     aligned_dict = whisperx.assign_word_speakers(diarization_result, aligned_dict)
-    alignment_result: AlignmentResult = alignment_result_from_whisper(aligned_dict)
+    alignment_result = alignment_result_from_whisper(aligned_dict)
     _fill_missing_word_speakers(alignment_result, diarization_result)
 
-    lines: list[str] = []
+    lines = []
     for segment in alignment_result.segments:
         words = [word for word in segment.words if isinstance(word.word, str)]
         if not words: continue
@@ -74,7 +71,7 @@ def postprocess_segments(diarization_result: DataFrame, alignment_result: Alignm
     return "\n".join(lines).encode("utf-8")
 
 
-def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_result: DataFrame) -> None:
+def _fill_missing_word_speakers(alignment_result, diarization_result: DataFrame):
     """
     fills missing word "speaker" fields in alignment_result using diarization turns
     builds time intervals from diarization_result and 
@@ -96,9 +93,9 @@ def _fill_missing_word_speakers(alignment_result: AlignmentResult, diarization_r
                     word_entry.speaker = interval_label
                     break
 
-def _format_timestamp(total_seconds: float) -> str:
-    hours: int = int(total_seconds // 3600)
-    minutes: int = int((total_seconds % 3600) // 60)
-    seconds: int = int(total_seconds % 60)
+def _format_timestamp(total_seconds):
+    hours = int(total_seconds // 3600)
+    minutes = int((total_seconds % 3600) // 60)
+    seconds = int(total_seconds % 60)
 
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
