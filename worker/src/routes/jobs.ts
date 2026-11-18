@@ -104,9 +104,25 @@ jobs.post("/upload/:jobid/complete", csrf, async (c) => {
   }
 
   const ts = now();
-  await c.env.DB.prepare("UPDATE jobs SET status = 'queued', upload_id = NULL, created_at = ?, updated_at = ? WHERE jobid = ?")
-    .bind(ts, ts, job.jobid)
-    .run();
+  const statements = [
+    c.env.DB.prepare("UPDATE jobs SET status = 'queued', upload_id = NULL, created_at = ?, updated_at = ? WHERE jobid = ?").bind(
+      ts,
+      ts,
+      job.jobid,
+    ),
+  ];
+  if (job.email) {
+    statements.push(
+      c.env.DB.prepare("INSERT INTO transcriptions(jobid, email, created_at, filename) VALUES(?, ?, ?, ?)").bind(
+        job.jobid,
+        job.email,
+        ts,
+        job.filename,
+      ),
+      c.env.DB.prepare("UPDATE users SET api_usage = api_usage + 1 WHERE email = ?").bind(job.email),
+    );
+  }
+  await c.env.DB.batch(statements);
 
   logger.info("job queued", { jobid: job.jobid, email: job.email });
   return c.json({ jobid: job.jobid, status: "queued" });
