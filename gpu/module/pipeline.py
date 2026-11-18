@@ -57,9 +57,9 @@ def run_diarization_pipeline(audio: ndarray) -> DataFrame:
 
 def postprocess_segments(diarization_result: DataFrame, alignment_result) -> bytes:
     aligned_dict = alignment_result_to_whisper(alignment_result)
-    aligned_dict = whisperx.assign_word_speakers(diarization_result, aligned_dict)
+    aligned_dict = whisperx.assign_word_speakers(diarization_result, aligned_dict, fill_nearest=True)
     alignment_result = alignment_result_from_whisper(aligned_dict)
-    _fill_missing_word_speakers(alignment_result, diarization_result)
+    # _fill_missing_word_speakers(alignment_result, diarization_result)
 
     lines = []
     for segment in alignment_result.segments:
@@ -72,27 +72,28 @@ def postprocess_segments(diarization_result: DataFrame, alignment_result) -> byt
     return "\n".join(lines).encode("utf-8")
 
 
-def _fill_missing_word_speakers(alignment_result, diarization_result: DataFrame):
-    """
-    fills missing word "speaker" fields in alignment_result using diarization turns
-    builds time intervals from diarization_result and 
-    assigns the interval speaker to words whose start time falls inside an interval"""
-    diarization_intervals = []
-    for _, diarization_row in diarization_result.iterrows():
-        if "start" in diarization_row and "end" in diarization_row:
-            diarization_intervals.append(
-                (float(diarization_row["start"]), float(diarization_row["end"]),
-                str(diarization_row.get("speaker") or diarization_row.get("label") or "")))
-
-
-    for segment in alignment_result.segments:
-        for word_entry in segment.words:
-            if word_entry.speaker: continue
-            word_time = float(word_entry.duration.start)
-            for interval_start, interval_end, interval_label in diarization_intervals:
-                if interval_start <= word_time < interval_end and interval_label:
-                    word_entry.speaker = interval_label
-                    break
+# backup in case fill_nearest misbehaves
+# def _fill_missing_word_speakers(alignment_result, diarization_result: DataFrame):
+#     """
+#     fills missing word "speaker" fields in alignment_result using diarization turns
+#     builds time intervals from diarization_result and 
+#     assigns the interval speaker to words whose start time falls inside an interval"""
+#     diarization_intervals = []
+#     for _, diarization_row in diarization_result.iterrows():
+#         if "start" in diarization_row and "end" in diarization_row:
+#             diarization_intervals.append(
+#                 (float(diarization_row["start"]), float(diarization_row["end"]),
+#                 str(diarization_row.get("speaker") or diarization_row.get("label") or "")))
+#
+#
+#     for segment in alignment_result.segments:
+#         for word_entry in segment.words:
+#             if word_entry.speaker: continue
+#             word_time = float(word_entry.duration.start)
+#             for interval_start, interval_end, interval_label in diarization_intervals:
+#                 if interval_start <= word_time < interval_end and interval_label:
+#                     word_entry.speaker = interval_label
+#                     break
 
 def _format_timestamp(total_seconds):
     hours = int(total_seconds // 3600)
