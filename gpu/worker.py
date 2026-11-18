@@ -50,6 +50,7 @@ class StatusReporter:
     def __init__(self, jobid):
         self.jobid = jobid
         self.status = "received"
+        self.progress = None
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._heartbeat, daemon=True)
@@ -65,10 +66,16 @@ class StatusReporter:
     def set(self, status):
         with self._lock:
             self.status = status.value if isinstance(status, Enum) else str(status)
+            self.progress = None
+            self._send()
+
+    def report_progress(self, pct):
+        with self._lock:
+            self.progress = int(pct)
             self._send()
 
     def _send(self):
-        try: _api("POST", f"/jobs/{self.jobid}/status", json={"status": self.status})
+        try: _api("POST", f"/jobs/{self.jobid}/status", json={"status": self.status, "progress": self.progress})
         except requests.RequestException as e: log_with_extra(logging.WARNING, "status update failed", jobid=self.jobid, status=self.status, error=str(e))
 
     def _heartbeat(self):
@@ -102,7 +109,7 @@ def process(job: dict):
         with StatusReporter(jobid) as reporter:
             size = _download_audio(jobid, path)
             log_with_extra(logging.DEBUG, "audio downloaded", jobid=jobid, size=size)
-            transcript: bytes = generate_diarized_transcript(path, on_status=reporter.set)
+            transcript: bytes = generate_diarized_transcript(path, on_status=reporter.set, on_progress=reporter.report_progress)
         _api("POST", f"/jobs/{jobid}/complete", timeout=120, data=transcript, headers={"Content-Type": "text/plain; charset=utf-8"})
         log_with_extra(logging.INFO, "job completed", jobid=jobid, transcript_size=len(transcript), seconds=round(time.monotonic() - started, 1))
     except requests.RequestException as e:

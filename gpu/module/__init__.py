@@ -16,16 +16,16 @@ def warm_up():
     get_align_model()
     get_diarization_pipeline()
 
-def generate_diarized_transcript(audio_path, on_status: Callable[[str], None] | None = None) -> bytes:
+def generate_diarized_transcript(audio_path, on_status: Callable[[str], None] | None = None, on_progress: Callable[[float], None] | None = None) -> bytes:
     try:
         if on_status: on_status(CurrentState.RECEIVED)
         audio = load_audio(audio_path)
         if on_status: on_status(CurrentState.TRANSCRIBING)
         transcription_result = transcribe_audio(audio)
         if on_status: on_status(CurrentState.ALIGNING)
-        alignment_result = align_transcript_segments(audio, transcription_result.segments)
+        alignment_result = align_transcript_segments(audio, transcription_result.segments, on_progress)
         if on_status: on_status(CurrentState.DIARIZING)
-        diarization_result = run_diarization_pipeline(audio)
+        diarization_result = run_diarization_pipeline(audio, on_progress)
         if on_status: on_status(CurrentState.POSTPROCESSING)
         transcript_bytes = postprocess_segments(diarization_result, alignment_result)
         return transcript_bytes

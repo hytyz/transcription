@@ -41,18 +41,18 @@ def transcribe_audio(audio: ndarray):
     with torch.inference_mode(): raw = whisper_model.transcribe(audio, batch_size=BATCH_SIZE, language="en", task="transcribe")
     return transcription_result_from_whisper(raw)
 
-def align_transcript_segments(audio: ndarray, segments: list[Segment]):
+def align_transcript_segments(audio: ndarray, segments: list[Segment], on_progress=None):
     align_model, align_metadata = get_align_model()
     whisper_segments = [segment_to_whisper(s) for s in segments]
     raw = whisperx.align(whisper_segments, align_model, 
                          {"language": align_metadata.language, 
                           "dictionary": align_metadata.dictionary, 
-                          "type": align_metadata.type}, audio, DEVICE)
+                          "type": align_metadata.type}, audio, DEVICE, progress_callback=on_progress)
     return alignment_result_from_whisper(raw)
 
-def run_diarization_pipeline(audio: ndarray) -> DataFrame:
+def run_diarization_pipeline(audio: ndarray, on_progress=None) -> DataFrame:
     diarization_pipeline = get_diarization_pipeline()
-    diarization_result = diarization_pipeline(audio, min_speakers=2, max_speakers=5)
+    diarization_result = diarization_pipeline(audio, min_speakers=2, max_speakers=5, progress_callback=on_progress)
     return diarization_result
 
 def postprocess_segments(diarization_result: DataFrame, alignment_result) -> bytes:
