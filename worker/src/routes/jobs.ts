@@ -16,6 +16,7 @@ type JobRow = {
   upload_id: string | null;
   status: string;
   error: string | null;
+  progress: number | null;
   created_at: number;
 };
 
@@ -131,9 +132,9 @@ jobs.get("/jobs/:jobid", async (c) => {
   const jobid = c.req.param("jobid");
   if (!(await canAccess(c, jobid))) return c.json({ error: "job not found" }, 404);
 
-  const job = await c.env.DB.prepare("SELECT jobid, status, error, created_at FROM jobs WHERE jobid = ?")
+  const job = await c.env.DB.prepare("SELECT jobid, status, error, progress, created_at FROM jobs WHERE jobid = ?")
     .bind(jobid)
-    .first<Pick<JobRow, "jobid" | "status" | "error" | "created_at">>();
+    .first<Pick<JobRow, "jobid" | "status" | "error" | "progress" | "created_at">>();
   if (!job) return c.json({ jobid, status: "completed" });
 
   let ahead = 0;
@@ -143,7 +144,7 @@ jobs.get("/jobs/:jobid", async (c) => {
       .first<{ n: number }>();
     ahead = row?.n ?? 0;
   }
-  return c.json({ jobid, status: job.status, error: job.error, ahead });
+  return c.json({ jobid, status: job.status, error: job.error, progress: job.progress, ahead });
 });
 
 export default jobs;

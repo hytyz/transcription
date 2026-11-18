@@ -81,11 +81,16 @@ gpu.get("/jobs/:jobid/audio", async (c) => {
 
 gpu.post("/jobs/:jobid/status", async (c) => {
   const jobid = c.req.param("jobid");
-  const { status } = await c.req.json<{ status?: string }>().catch(() => ({}) as { status?: undefined });
+  const { status, progress } = await c.req
+    .json<{ status?: string; progress?: unknown }>()
+    .catch(() => ({}) as { status?: undefined; progress?: undefined });
   if (!status || !PROCESSING.includes(status)) return c.json({ error: "invalid status" }, 400);
   if (!(await activeJob(c, jobid))) return c.json({ error: "job not found" }, 404);
 
-  await c.env.DB.prepare("UPDATE jobs SET status = ?, updated_at = ? WHERE jobid = ?").bind(status, now(), jobid).run();
+  const pct = typeof progress === "number" && progress >= 0 && progress <= 100 ? Math.round(progress) : null;
+  await c.env.DB.prepare("UPDATE jobs SET status = ?, progress = ?, updated_at = ? WHERE jobid = ?")
+    .bind(status, pct, now(), jobid)
+    .run();
   return c.json({ ok: true });
 });
 
